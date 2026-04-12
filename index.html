@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Rorschach – advanced realistic ink</title>
+<title>Rorschach – More Realistic</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #efe7d6;
+  background: #f3f0e7;
 }
 canvas {
   display: block;
@@ -33,18 +33,14 @@ function makeRng(seed) {
 }
 
 function noise2D(x, y, seed) {
-  const n = Math.sin(x * 127.1 + y * 311.7 + seed * 91.7) * 43758.5453123;
+  const n = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453123;
   return n - Math.floor(n);
-}
-
-function clamp(v, lo, hi) {
-  return Math.max(lo, Math.min(hi, v));
 }
 
 function drawPaper(ctx, W, H, rng) {
   const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, '#f4eedf');
-  bg.addColorStop(1, '#e8dfcb');
+  bg.addColorStop(0, '#f5f1e8');
+  bg.addColorStop(1, '#ece6d8');
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
@@ -53,122 +49,41 @@ function drawPaper(ctx, W, H, rng) {
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       const i = (y * W + x) * 4;
-      const grain1 = (noise2D(x * 0.85, y * 0.85, 2.1) - 0.5) * 9;
-      const grain2 = (noise2D(x * 0.22, y * 0.22, 7.4) - 0.5) * 11;
-      const fiber  = (noise2D(x * 0.03, y * 1.8, 5.8) - 0.5) * 10;
-      const base = 236 + grain1 + grain2 + fiber;
-      d[i]     = clamp(base + 8, 220, 247);
-      d[i + 1] = clamp(base + 2, 214, 241);
-      d[i + 2] = clamp(base - 7, 200, 232);
-      d[i + 3] = 38;
+      const grain = (noise2D(x * 0.9, y * 0.9, 3.1) - 0.5) * 18;
+      const fiber = (noise2D(x * 0.06, y * 1.8, 6.2) - 0.5) * 8;
+      const v = 239 + grain + fiber;
+      d[i] = Math.max(225, Math.min(248, v + 5));
+      d[i + 1] = Math.max(220, Math.min(245, v + 2));
+      d[i + 2] = Math.max(210, Math.min(238, v - 4));
+      d[i + 3] = 28;
     }
   }
   ctx.putImageData(img, 0, 0);
 
   ctx.save();
-  ctx.globalAlpha = 0.035;
-  for (let i = 0; i < 2400; i++) {
-    ctx.fillStyle = rng.pick(['#8c806d', '#766b5d', '#9a8d78']);
-    ctx.fillRect(
-      rng.range(0, W),
-      rng.range(0, H),
-      rng.range(6, 70),
-      rng.range(0.3, 1.15)
-    );
+  ctx.globalAlpha = 0.06;
+  for (let i = 0; i < 1800; i++) {
+    const x = rng.range(0, W);
+    const y = rng.range(0, H);
+    const w = rng.range(8, 60);
+    const h = rng.range(0.4, 1.2);
+    ctx.fillStyle = '#7d7467';
+    ctx.fillRect(x, y, w, h);
   }
   ctx.restore();
-
-  const fold = ctx.createLinearGradient(W/2 - 18, 0, W/2 + 18, 0);
-  fold.addColorStop(0, 'rgba(120,105,82,0)');
-  fold.addColorStop(0.5, 'rgba(120,105,82,0.14)');
-  fold.addColorStop(1, 'rgba(120,105,82,0)');
-  ctx.fillStyle = fold;
-  ctx.fillRect(W/2 - 18, 0, 36, H);
 }
 
-function mirrorDraw(ctx, cx, cy, leftFn, rightFn) {
-  ctx.save();
-  ctx.translate(cx, cy);
-
-  leftFn();
-
-  ctx.save();
-  ctx.scale(-1, 1);
-  rightFn();
-  ctx.restore();
-
-  ctx.restore();
-}
-
-function buildBaseLobes(rng, base) {
-  const lobes = [{
-    ox: rng.range(8, base * 0.03),
-    oy: rng.range(-base * 0.02, base * 0.03),
-    r:  base * rng.range(0.15, 0.22),
-    sx: rng.range(0.78, 0.98),
-    sy: rng.range(0.90, 1.22),
-    pts: rng.int(12, 18)
-  }];
-
-  const extra = rng.int(4, 7);
-  for (let i = 0; i < extra; i++) {
-    lobes.push({
-      ox: rng.range(base * 0.04, base * 0.18),
-      oy: rng.range(-base * 0.20, base * 0.22),
-      r:  base * rng.range(0.04, 0.11),
-      sx: rng.range(0.62, 1.18),
-      sy: rng.range(0.70, 1.35),
-      pts: rng.int(8, 14)
-    });
-  }
-  return lobes;
-}
-
-function radialBlobPoints(rng, lobe, jag = 1) {
+function buildLobePoints(rng, baseR, ox, oy, squashX, squashY, numPts) {
   const pts = [];
-  const phase1 = rng.range(0, Math.PI * 2);
-  const phase2 = rng.range(0, Math.PI * 2);
-  const f1 = rng.range(2.4, 4.8);
-  const f2 = rng.range(5.5, 9.0);
-
-  for (let i = 0; i < lobe.pts; i++) {
-    const a = (i / lobe.pts) * Math.PI * 2;
-    const wobble1 = 1 + Math.sin(a * f1 + phase1) * rng.range(0.07, 0.17) * jag;
-    const wobble2 = 1 + Math.sin(a * f2 + phase2) * rng.range(0.03, 0.09) * jag;
-    const rand = rng.range(0.90, 1.12);
-    const r = lobe.r * wobble1 * wobble2 * rand;
-
+  for (let i = 0; i < numPts; i++) {
+    const a = (i / numPts) * Math.PI * 2;
+    const wobble1 = 0.82 + rng.next() * 0.52;
+    const wobble2 = 0.94 + Math.sin(a * rng.range(2.2, 5.2) + rng.range(0, Math.PI * 2)) * rng.range(0.06, 0.18);
+    const r = baseR * wobble1 * wobble2;
     pts.push({
-      x: Math.cos(a) * r * lobe.sx + lobe.ox,
-      y: Math.sin(a) * r * lobe.sy + lobe.oy
+      x: Math.cos(a) * r * squashX + ox,
+      y: Math.sin(a) * r * squashY + oy
     });
-  }
-  return pts;
-}
-
-function subdividePath(points, depth, jitter, rng) {
-  let pts = points.slice();
-  for (let d = 0; d < depth; d++) {
-    const next = [];
-    for (let i = 0; i < pts.length; i++) {
-      const a = pts[i];
-      const b = pts[(i + 1) % pts.length];
-      next.push(a);
-      const mx = (a.x + b.x) * 0.5;
-      const my = (a.y + b.y) * 0.5;
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      const len = Math.hypot(dx, dy) || 1;
-      const nx = -dy / len;
-      const ny = dx / len;
-      const off = rng.range(-jitter, jitter);
-      next.push({
-        x: mx + nx * off + rng.range(-jitter * 0.15, jitter * 0.15),
-        y: my + ny * off + rng.range(-jitter * 0.15, jitter * 0.15)
-      });
-    }
-    pts = next;
-    jitter *= 0.55;
   }
   return pts;
 }
@@ -193,259 +108,190 @@ function smoothClosedPath(ctx, pts) {
   ctx.closePath();
 }
 
-function drawDeformedBlob(ctx, rng, lobe, opts = {}) {
-  const pts0 = radialBlobPoints(rng, lobe, opts.jag ?? 1);
-  const pts1 = subdividePath(pts0, opts.depth ?? 2, opts.jitter ?? (lobe.r * 0.12), rng);
-  smoothClosedPath(ctx, pts1);
+function drawMirroredShape(ctx, cx, cy, drawFn) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  drawFn(false);
+  ctx.save();
+  ctx.scale(-1, 1);
+  drawFn(true);
+  ctx.restore();
+  ctx.restore();
 }
 
-function drawHalfInk(ctx, rng, base, lobes) {
-  ctx.save();
-  ctx.globalCompositeOperation = 'multiply';
+function drawInkBody(ctx, rng, cx, cy, W, H) {
+  const base = Math.min(W, H);
+  const lobes = [];
 
-  // broad absorbed bloom
-  for (let pass = 0; pass < 22; pass++) {
+  lobes.push({
+    ox: rng.range(8, base * 0.028),
+    oy: rng.range(-base * 0.04, base * 0.03),
+    r: base * rng.range(0.16, 0.24),
+    sx: rng.range(0.72, 0.96),
+    sy: rng.range(0.9, 1.24),
+    pts: rng.int(14, 20)
+  });
+
+  const extra = rng.int(3, 6);
+  for (let i = 0; i < extra; i++) {
+    lobes.push({
+      ox: rng.range(base * 0.03, base * 0.18),
+      oy: rng.range(-base * 0.2, base * 0.22),
+      r: base * rng.range(0.05, 0.13),
+      sx: rng.range(0.62, 1.12),
+      sy: rng.range(0.7, 1.35),
+      pts: rng.int(9, 15)
+    });
+  }
+
+  drawMirroredShape(ctx, cx, cy, () => {
     ctx.save();
-    ctx.globalAlpha = rng.range(0.015, 0.035);
-    ctx.filter = `blur(${rng.range(7, 18)}px)`;
-    ctx.fillStyle = rng.pick(['#302620', '#241c17', '#3b2f28', '#211915']);
+    ctx.globalCompositeOperation = 'multiply';
 
-    for (const src of lobes) {
-      const lobe = {
-        ...src,
-        ox: src.ox + rng.range(-base * 0.010, base * 0.014),
-        oy: src.oy + rng.range(-base * 0.012, base * 0.012),
-        r:  src.r  * rng.range(1.02, 1.12)
-      };
-      drawDeformedBlob(ctx, rng, lobe, {
-        depth: 2,
-        jitter: lobe.r * 0.13,
-        jag: 1.3
-      });
+    // soft outer bleed
+    for (let pass = 0; pass < 18; pass++) {
+      ctx.save();
+      ctx.globalAlpha = 0.028;
+      ctx.filter = `blur(${rng.range(8, 18)}px)`;
+      ctx.fillStyle = rng.pick(['#2b221d', '#211915', '#322721']);
+      for (const lobe of lobes) {
+        const pts = buildLobePoints(
+          rng,
+          lobe.r * rng.range(1.02, 1.12),
+          lobe.ox + rng.range(-base * 0.008, base * 0.012),
+          lobe.oy + rng.range(-base * 0.012, base * 0.012),
+          lobe.sx,
+          lobe.sy,
+          lobe.pts
+        );
+        smoothClosedPath(ctx, pts);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // mid ink body
+    for (let pass = 0; pass < 9; pass++) {
+      ctx.save();
+      ctx.globalAlpha = 0.08;
+      ctx.filter = `blur(${rng.range(1.5, 4.5)}px)`;
+      ctx.fillStyle = rng.pick(['#181210', '#120d0b', '#211814']);
+      for (const lobe of lobes) {
+        const pts = buildLobePoints(
+          rng,
+          lobe.r * rng.range(0.98, 1.02),
+          lobe.ox + rng.range(-base * 0.004, base * 0.004),
+          lobe.oy + rng.range(-base * 0.004, base * 0.004),
+          lobe.sx,
+          lobe.sy,
+          lobe.pts
+        );
+        smoothClosedPath(ctx, pts);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // dark wet core
+    ctx.save();
+    ctx.globalAlpha = 0.92;
+    ctx.fillStyle = '#120d0c';
+    for (const lobe of lobes) {
+      const pts = buildLobePoints(rng, lobe.r * 0.88, lobe.ox, lobe.oy, lobe.sx, lobe.sy, lobe.pts);
+      smoothClosedPath(ctx, pts);
       ctx.fill();
     }
     ctx.restore();
-  }
 
-  // layered translucent shells
-  for (let pass = 0; pass < 18; pass++) {
-    ctx.save();
-    ctx.globalAlpha = rng.range(0.028, 0.065);
-    ctx.filter = `blur(${rng.range(0.8, 3.2)}px)`;
-    ctx.fillStyle = rng.pick(['#221916', '#1b1411', '#2c221d', '#372b24']);
-
-    for (const src of lobes) {
-      const lobe = {
-        ...src,
-        ox: src.ox + rng.range(-base * 0.004, base * 0.005),
-        oy: src.oy + rng.range(-base * 0.005, base * 0.005),
-        r:  src.r  * rng.range(0.98, 1.03)
-      };
-      drawDeformedBlob(ctx, rng, lobe, {
-        depth: 3,
-        jitter: lobe.r * 0.10,
-        jag: 1.05
-      });
+    // internal watery tonal pockets
+    for (let i = 0; i < 14; i++) {
+      ctx.save();
+      ctx.globalAlpha = rng.range(0.035, 0.07);
+      ctx.filter = `blur(${rng.range(6, 16)}px)`;
+      ctx.fillStyle = '#5a4a42';
+      const rx = rng.range(base * 0.02, base * 0.18);
+      const ry = rng.range(-base * 0.18, base * 0.18);
+      const rw = rng.range(base * 0.02, base * 0.09);
+      const rh = rng.range(base * 0.02, base * 0.12);
+      ctx.beginPath();
+      ctx.ellipse(rx, ry, rw, rh, rng.range(-0.8, 0.8), 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
     }
+
     ctx.restore();
-  }
+  });
 
-  // wet core
-  ctx.save();
-  ctx.globalAlpha = 0.90;
-  ctx.fillStyle = '#120d0c';
-  for (const src of lobes) {
-    const lobe = { ...src, r: src.r * 0.86 };
-    drawDeformedBlob(ctx, rng, lobe, {
-      depth: 2,
-      jitter: lobe.r * 0.07,
-      jag: 0.85
-    });
-    ctx.fill();
-  }
-  ctx.restore();
-
-  // internal tonal pockets
-  for (let i = 0; i < 24; i++) {
-    ctx.save();
-    ctx.globalAlpha = rng.range(0.02, 0.06);
-    ctx.filter = `blur(${rng.range(5, 16)}px)`;
-    ctx.fillStyle = rng.pick(['#6c5c52', '#5a4b43', '#7a675b']);
-    ctx.beginPath();
-    ctx.ellipse(
-      rng.range(base * 0.02, base * 0.18),
-      rng.range(-base * 0.18, base * 0.18),
-      rng.range(base * 0.014, base * 0.075),
-      rng.range(base * 0.018, base * 0.10),
-      rng.range(-1.1, 1.1),
-      0, Math.PI * 2
-    );
-    ctx.fill();
-    ctx.restore();
-  }
-
-  // ragged voids
-  ctx.save();
-  ctx.globalCompositeOperation = 'destination-out';
-  for (let i = 0; i < 5; i++) {
-    ctx.save();
-    ctx.globalAlpha = rng.range(0.35, 0.62);
-    ctx.filter = `blur(${rng.range(0.6, 2.0)}px)`;
-    const lobe = {
-      ox: rng.range(base * 0.03, base * 0.16),
-      oy: rng.range(-base * 0.12, base * 0.13),
-      r:  base * rng.range(0.018, 0.050),
-      sx: rng.range(0.7, 1.35),
-      sy: rng.range(0.7, 1.5),
-      pts: rng.int(8, 14)
-    };
-    drawDeformedBlob(ctx, rng, lobe, {
-      depth: 2,
-      jitter: lobe.r * 0.16,
-      jag: 1.4
-    });
-    ctx.fill();
-    ctx.restore();
-  }
-  ctx.restore();
-
-  // stain around voids so they do not look cut out
-  for (let i = 0; i < 10; i++) {
-    ctx.save();
-    ctx.globalAlpha = rng.range(0.02, 0.045);
-    ctx.filter = `blur(${rng.range(2, 7)}px)`;
-    ctx.fillStyle = '#4c4038';
-    ctx.beginPath();
-    ctx.ellipse(
-      rng.range(base * 0.03, base * 0.17),
-      rng.range(-base * 0.13, base * 0.14),
-      rng.range(base * 0.014, base * 0.05),
-      rng.range(base * 0.016, base * 0.055),
-      rng.range(-1.2, 1.2),
-      0, Math.PI * 2
-    );
-    ctx.fill();
-    ctx.restore();
-  }
-
-  ctx.restore();
+  // seam/paper fold impression
+  const fold = ctx.createLinearGradient(cx - 16, 0, cx + 16, 0);
+  fold.addColorStop(0, 'rgba(120,108,92,0)');
+  fold.addColorStop(0.5, 'rgba(120,108,92,0.12)');
+  fold.addColorStop(1, 'rgba(120,108,92,0)');
+  ctx.fillStyle = fold;
+  ctx.fillRect(cx - 20, 0, 40, H);
 }
 
-function drawInkMass(ctx, rng, cx, cy, W, H) {
+function drawDrips(ctx, rng, cx, cy, W, H) {
   const base = Math.min(W, H);
-  const leftLobes = buildBaseLobes(rng, base);
-  const rightLobes = JSON.parse(JSON.stringify(leftLobes)).map(l => ({
-    ...l,
-    ox: l.ox * rng.range(0.97, 1.04),
-    oy: l.oy + rng.range(-base * 0.01, base * 0.01),
-    r:  l.r * rng.range(0.97, 1.05),
-    sx: l.sx * rng.range(0.96, 1.04),
-    sy: l.sy * rng.range(0.96, 1.05)
-  }));
+  const drips = rng.int(2, 5);
+  for (let i = 0; i < drips; i++) {
+    const dx = rng.range(base * 0.04, base * 0.16);
+    const dy = rng.range(base * 0.12, base * 0.27);
+    const length = rng.range(base * 0.08, base * 0.22);
+    const width = rng.range(base * 0.006, base * 0.015);
 
-  mirrorDraw(
-    ctx, cx, cy,
-    () => drawHalfInk(ctx, rng, base, leftLobes),
-    () => drawHalfInk(ctx, rng, base, rightLobes)
-  );
-}
+    drawMirroredShape(ctx, cx, cy, () => {
+      ctx.save();
+      ctx.globalAlpha = 0.18;
+      ctx.filter = 'blur(5px)';
+      ctx.strokeStyle = '#2b221d';
+      ctx.lineCap = 'round';
+      ctx.lineWidth = width * 2.8;
+      ctx.beginPath();
+      ctx.moveTo(dx, dy - length * 0.15);
+      ctx.bezierCurveTo(dx + width * 2, dy + length * 0.15, dx - width, dy + length * 0.5, dx, dy + length);
+      ctx.stroke();
+      ctx.restore();
 
-function drawHalfWickRuns(ctx, rng, base, count) {
-  for (let i = 0; i < count; i++) {
-    const x = rng.range(base * 0.035, base * 0.12);
-    const y = rng.range(base * 0.10, base * 0.19);
-    const len = rng.range(base * 0.035, base * 0.09);
-    const w = rng.range(base * 0.0025, base * 0.0065);
-
-    ctx.save();
-    ctx.globalAlpha = rng.range(0.028, 0.065);
-    ctx.filter = `blur(${rng.range(2.5, 7)}px)`;
-    ctx.strokeStyle = '#3a3028';
-    ctx.lineCap = 'round';
-    ctx.lineWidth = w * 2.3;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.bezierCurveTo(
-      x + rng.range(-w * 4, w * 4), y + len * 0.30,
-      x + rng.range(-w * 5, w * 5), y + len * 0.75,
-      x + rng.range(-w * 3, w * 3), y + len
-    );
-    ctx.stroke();
-    ctx.restore();
-
-    ctx.save();
-    ctx.globalAlpha = rng.range(0.04, 0.11);
-    ctx.filter = `blur(${rng.range(1.5, 4)}px)`;
-    ctx.fillStyle = '#352b24';
-    ctx.beginPath();
-    ctx.ellipse(
-      x + rng.range(-w * 2, w * 2),
-      y + len + rng.range(-w, w),
-      w * rng.range(1.2, 2.2),
-      w * rng.range(1.5, 3.2),
-      rng.range(-0.6, 0.6),
-      0, Math.PI * 2
-    );
-    ctx.fill();
-    ctx.restore();
-  }
-}
-
-function drawWicking(ctx, rng, cx, cy, W, H) {
-  const base = Math.min(W, H);
-  mirrorDraw(
-    ctx, cx, cy,
-    () => drawHalfWickRuns(ctx, rng, base, rng.int(0, 2)),
-    () => drawHalfWickRuns(ctx, rng, base, rng.int(0, 2))
-  );
-}
-
-function drawHalfSplatter(ctx, rng, base, count) {
-  for (let i = 0; i < count; i++) {
-    const a = rng.range(0, Math.PI * 2);
-    const dist = Math.pow(rng.next(), 0.72) * base * 0.44;
-    const x = Math.cos(a) * dist + rng.range(base * 0.005, base * 0.03);
-    const y = Math.sin(a) * dist;
-    const r = Math.pow(rng.next(), 2.2) * base * 0.004 + 0.12;
-
-    ctx.save();
-    ctx.globalAlpha = rng.range(0.012, 0.075);
-    ctx.fillStyle = rng.pick(['#1f1815', '#302620', '#41342c']);
-    ctx.beginPath();
-    ctx.ellipse(
-      x, y,
-      r * rng.range(0.8, 1.9),
-      r * rng.range(0.7, 1.7),
-      rng.range(-1, 1),
-      0, Math.PI * 2
-    );
-    ctx.fill();
-    ctx.restore();
+      ctx.save();
+      ctx.globalAlpha = 0.72;
+      ctx.strokeStyle = '#171110';
+      ctx.lineCap = 'round';
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(dx, dy - length * 0.1);
+      ctx.bezierCurveTo(dx + width * 1.8, dy + length * 0.15, dx - width * 1.2, dy + length * 0.55, dx, dy + length);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(dx, dy + length + width * 0.8, width * 1.8, width * 2.4, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#171110';
+      ctx.fill();
+      ctx.restore();
+    });
   }
 }
 
 function drawSplatter(ctx, rng, cx, cy, W, H) {
   const base = Math.min(W, H);
-  mirrorDraw(
-    ctx, cx, cy,
-    () => drawHalfSplatter(ctx, rng, base, 110),
-    () => drawHalfSplatter(ctx, rng, base, 95)
-  );
-}
+  const count = rng.int(120, 240);
+  for (let i = 0; i < count; i++) {
+    const a = rng.range(0, Math.PI * 2);
+    const dist = Math.pow(rng.next(), 0.72) * base * 0.42;
+    const x = Math.cos(a) * dist + rng.range(base * 0.01, base * 0.03);
+    const y = Math.sin(a) * dist;
+    const r = Math.pow(rng.next(), 1.8) * base * 0.008 + 0.4;
+    const alpha = rng.range(0.06, 0.28);
 
-function drawShadow(ctx, W, H) {
-  const base = Math.min(W, H);
-  const cx = W / 2;
-  const cy = H / 2;
-  ctx.save();
-  ctx.globalAlpha = 0.06;
-  ctx.filter = 'blur(20px)';
-  ctx.fillStyle = '#2c241f';
-  ctx.beginPath();
-  ctx.ellipse(cx, cy + base * 0.02, base * 0.25, base * 0.17, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
+    drawMirroredShape(ctx, cx, cy, () => {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = rng.pick(['#1e1714', '#2e241f', '#3a2d27']);
+      ctx.beginPath();
+      ctx.ellipse(x, y, r * rng.range(0.8, 1.8), r * rng.range(0.7, 1.6), rng.range(-1, 1), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+  }
 }
 
 function draw() {
@@ -454,15 +300,27 @@ function draw() {
   const H = window.innerHeight;
   canvas.width = W;
   canvas.height = H;
-
   const ctx = canvas.getContext('2d');
-  const rng = makeRng(Math.floor(Date.now() / 1000));
 
+  const rng = makeRng(Math.floor(Date.now() / 1000));
   drawPaper(ctx, W, H, rng);
-  drawInkMass(ctx, rng, W / 2, H / 2, W, H);
-  drawWicking(ctx, rng, W / 2, H / 2, W, H);
-  drawSplatter(ctx, rng, W / 2, H / 2, W, H);
-  drawShadow(ctx, W, H);
+
+  const cx = W / 2;
+  const cy = H / 2;
+
+  drawInkBody(ctx, rng, cx, cy, W, H);
+  drawDrips(ctx, rng, cx, cy, W, H);
+  drawSplatter(ctx, rng, cx, cy, W, H);
+
+  // faint outer shadow to seat the blot in the paper
+  ctx.save();
+  ctx.globalAlpha = 0.08;
+  ctx.filter = 'blur(18px)';
+  ctx.fillStyle = '#2c241f';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + Math.min(W, H) * 0.02, Math.min(W, H) * 0.25, Math.min(W, H) * 0.18, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 draw();
