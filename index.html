@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Rorschach – More Realistic</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #f3f0e7;
+}
+canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+function makeRng(seed) {
+  let s = (seed ^ 0x9e3779b9) >>> 0;
+  return {
+    next()        { s = (Math.imul(1664525, s) + 1013904223) >>> 0; return s / 4294967295; },
+    range(lo, hi) { return lo + this.next() * (hi - lo); },
+    int(lo, hi)   { return Math.floor(this.range(lo, hi + 1)); },
+    pick(arr)     { return arr[this.int(0, arr.length - 1)]; }
+  };
+}
+
+function noise2D(x, y, seed) {
+  const n = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453123;
+  return n - Math.floor(n);
+}
+
+function drawPaper(ctx, W, H, rng) {
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#f5f1e8');
+  bg.addColorStop(1, '#ece6d8');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  const img = ctx.createImageData(W, H);
+  const d = img.data;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      const grain = (noise2D(x * 0.9, y * 0.9, 3.1) - 0.5) * 18;
+      const fiber = (noise2D(x * 0.06, y * 1.8, 6.2) - 0.5) * 8;
+      const v = 239 + grain + fiber;
+      d[i] = Math.max(225, Math.min(248, v + 5));
+      d[i + 1] = Math.max(220, Math.min(245, v + 2));
+      d[i + 2] = Math.max(210, Math.min(238, v - 4));
+      d[i + 3] = 28;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+
+  ctx.save();
+  ctx.globalAlpha = 0.06;
+  for (let i = 0; i < 1800; i++) {
+    const x = rng.range(0, W);
+    const y = rng.range(0, H);
+    const w = rng.range(8, 60);
+    const h = rng.range(0.4, 1.2);
+    ctx.fillStyle = '#7d7467';
+    ctx.fillRect(x, y, w, h);
+  }
+  ctx.restore();
+}
+
+function buildLobePoints(rng, baseR, ox, oy, squashX, squashY, numPts) {
+  const pts = [];
+  for (let i = 0; i < numPts; i++) {
+    const a = (i / numPts) * Math.PI * 2;
+    const wobble1 = 0.82 + rng.next() * 0.52;
+    const wobble2 = 0.94 + Math.sin(a * rng.range(2.2, 5.2) + rng.range(0, Math.PI * 2)) * rng.range(0.06, 0.18);
+    const r = baseR * wobble1 * wobble2;
+    pts.push({
+      x: Math.cos(a) * r * squashX + ox,
+      y: Math.sin(a) * r * squashY + oy
+    });
+  }
+  return pts;
+}
+
+function smoothClosedPath(ctx, pts) {
+  const n = pts.length;
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const p0 = pts[(i - 1 + n) % n];
+    const p1 = pts[i];
+    const p2 = pts[(i + 1) % n];
+    const p3 = pts[(i + 2) % n];
+
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+    if (i === 0) ctx.moveTo(p1.x, p1.y);
+    ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+  }
+  ctx.closePath();
+}
+
+function drawMirroredShape(ctx, cx, cy, drawFn) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  drawFn(false);
+  ctx.save();
+  ctx.scale(-1, 1);
+  drawFn(true);
+  ctx.restore();
+  ctx.restore();
+}
+
+function drawInkBody(ctx, rng, cx, cy, W, H) {
+  const base = Math.min(W, H);
+  const lobes = [];
+
+  lobes.push({
+    ox: rng.range(8, base * 0.028),
+    oy: rng.range(-base * 0.04, base * 0.03),
+    r: base * rng.range(0.16, 0.24),
+    sx: rng.range(0.72, 0.96),
+    sy: rng.range(0.9, 1.24),
+    pts: rng.int(14, 20)
+  });
+
+  const extra = rng.int(3, 6);
+  for (let i = 0; i < extra; i++) {
+    lobes.push({
+      ox: rng.range(base * 0.03, base * 0.18),
+      oy: rng.range(-base * 0.2, base * 0.22),
+      r: base * rng.range(0.05, 0.13),
+      sx: rng.range(0.62, 1.12),
+      sy: rng.range(0.7, 1.35),
+      pts: rng.int(9, 15)
+    });
+  }
+
+  drawMirroredShape(ctx, cx, cy, () => {
+    ctx.save();
+    ctx.globalCompositeOperation = 'multiply';
+
+    // soft outer bleed
+    for (let pass = 0; pass < 18; pass++) {
+      ctx.save();
+      ctx.globalAlpha = 0.028;
+      ctx.filter = `blur(${rng.range(8, 18)}px)`;
+      ctx.fillStyle = rng.pick(['#2b221d', '#211915', '#322721']);
+      for (const lobe of lobes) {
+        const pts = buildLobePoints(
+          rng,
+          lobe.r * rng.range(1.02, 1.12),
+          lobe.ox + rng.range(-base * 0.008, base * 0.012),
+          lobe.oy + rng.range(-base * 0.012, base * 0.012),
+          lobe.sx,
+          lobe.sy,
+          lobe.pts
+        );
+        smoothClosedPath(ctx, pts);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // mid ink body
+    for (let pass = 0; pass < 9; pass++) {
+      ctx.save();
+      ctx.globalAlpha = 0.08;
+      ctx.filter = `blur(${rng.range(1.5, 4.5)}px)`;
+      ctx.fillStyle = rng.pick(['#181210', '#120d0b', '#211814']);
+      for (const lobe of lobes) {
+        const pts = buildLobePoints(
+          rng,
+          lobe.r * rng.range(0.98, 1.02),
+          lobe.ox + rng.range(-base * 0.004, base * 0.004),
+          lobe.oy + rng.range(-base * 0.004, base * 0.004),
+          lobe.sx,
+          lobe.sy,
+          lobe.pts
+        );
+        smoothClosedPath(ctx, pts);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // dark wet core
+    ctx.save();
+    ctx.globalAlpha = 0.92;
+    ctx.fillStyle = '#120d0c';
+    for (const lobe of lobes) {
+      const pts = buildLobePoints(rng, lobe.r * 0.88, lobe.ox, lobe.oy, lobe.sx, lobe.sy, lobe.pts);
+      smoothClosedPath(ctx, pts);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // internal watery tonal pockets
+    for (let i = 0; i < 14; i++) {
+      ctx.save();
+      ctx.globalAlpha = rng.range(0.035, 0.07);
+      ctx.filter = `blur(${rng.range(6, 16)}px)`;
+      ctx.fillStyle = '#5a4a42';
+      const rx = rng.range(base * 0.02, base * 0.18);
+      const ry = rng.range(-base * 0.18, base * 0.18);
+      const rw = rng.range(base * 0.02, base * 0.09);
+      const rh = rng.range(base * 0.02, base * 0.12);
+      ctx.beginPath();
+      ctx.ellipse(rx, ry, rw, rh, rng.range(-0.8, 0.8), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    ctx.restore();
+  });
+
+  // seam/paper fold impression
+  const fold = ctx.createLinearGradient(cx - 16, 0, cx + 16, 0);
+  fold.addColorStop(0, 'rgba(120,108,92,0)');
+  fold.addColorStop(0.5, 'rgba(120,108,92,0.12)');
+  fold.addColorStop(1, 'rgba(120,108,92,0)');
+  ctx.fillStyle = fold;
+  ctx.fillRect(cx - 20, 0, 40, H);
+}
+
+function drawDrips(ctx, rng, cx, cy, W, H) {
+  const base = Math.min(W, H);
+  const drips = rng.int(2, 5);
+  for (let i = 0; i < drips; i++) {
+    const dx = rng.range(base * 0.04, base * 0.16);
+    const dy = rng.range(base * 0.12, base * 0.27);
+    const length = rng.range(base * 0.08, base * 0.22);
+    const width = rng.range(base * 0.006, base * 0.015);
+
+    drawMirroredShape(ctx, cx, cy, () => {
+      ctx.save();
+      ctx.globalAlpha = 0.18;
+      ctx.filter = 'blur(5px)';
+      ctx.strokeStyle = '#2b221d';
+      ctx.lineCap = 'round';
+      ctx.lineWidth = width * 2.8;
+      ctx.beginPath();
+      ctx.moveTo(dx, dy - length * 0.15);
+      ctx.bezierCurveTo(dx + width * 2, dy + length * 0.15, dx - width, dy + length * 0.5, dx, dy + length);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.save();
+      ctx.globalAlpha = 0.72;
+      ctx.strokeStyle = '#171110';
+      ctx.lineCap = 'round';
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(dx, dy - length * 0.1);
+      ctx.bezierCurveTo(dx + width * 1.8, dy + length * 0.15, dx - width * 1.2, dy + length * 0.55, dx, dy + length);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(dx, dy + length + width * 0.8, width * 1.8, width * 2.4, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#171110';
+      ctx.fill();
+      ctx.restore();
+    });
+  }
+}
+
+function drawSplatter(ctx, rng, cx, cy, W, H) {
+  const base = Math.min(W, H);
+  const count = rng.int(120, 240);
+  for (let i = 0; i < count; i++) {
+    const a = rng.range(0, Math.PI * 2);
+    const dist = Math.pow(rng.next(), 0.72) * base * 0.42;
+    const x = Math.cos(a) * dist + rng.range(base * 0.01, base * 0.03);
+    const y = Math.sin(a) * dist;
+    const r = Math.pow(rng.next(), 1.8) * base * 0.008 + 0.4;
+    const alpha = rng.range(0.06, 0.28);
+
+    drawMirroredShape(ctx, cx, cy, () => {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = rng.pick(['#1e1714', '#2e241f', '#3a2d27']);
+      ctx.beginPath();
+      ctx.ellipse(x, y, r * rng.range(0.8, 1.8), r * rng.range(0.7, 1.6), rng.range(-1, 1), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+  }
+}
+
+function draw() {
+  const canvas = document.getElementById('c');
+  const W = window.innerWidth;
+  const H = window.innerHeight;
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  const rng = makeRng(Math.floor(Date.now() / 1000));
+  drawPaper(ctx, W, H, rng);
+
+  const cx = W / 2;
+  const cy = H / 2;
+
+  drawInkBody(ctx, rng, cx, cy, W, H);
+  drawDrips(ctx, rng, cx, cy, W, H);
+  drawSplatter(ctx, rng, cx, cy, W, H);
+
+  // faint outer shadow to seat the blot in the paper
+  ctx.save();
+  ctx.globalAlpha = 0.08;
+  ctx.filter = 'blur(18px)';
+  ctx.fillStyle = '#2c241f';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + Math.min(W, H) * 0.02, Math.min(W, H) * 0.25, Math.min(W, H) * 0.18, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+draw();
+window.addEventListener('resize', draw);
+</script>
+</body>
+</html>
