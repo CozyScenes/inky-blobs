@@ -3,25 +3,17 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Rorschach – More Realistic</title>
+<title>Rorschach v9</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html, body {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background: #f3f0e7;
-}
-canvas {
-  display: block;
-  width: 100vw;
-  height: 100vh;
-}
+html, body { width: 100%; height: 100%; overflow: hidden; background: #c8bfad; }
+canvas { display: block; width: 100vw; height: 100vh; }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <script>
+// ── RNG ──────────────────────────────────────────────────────────────────────
 function makeRng(seed) {
   let s = (seed ^ 0x9e3779b9) >>> 0;
   return {
@@ -32,294 +24,517 @@ function makeRng(seed) {
   };
 }
 
-function noise2D(x, y, seed) {
-  const n = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453123;
+// ── Value noise ───────────────────────────────────────────────────────────────
+function hash(x, y, s) {
+  const n = Math.sin(x * 127.1 + y * 311.7 + s * 74.7) * 43758.5453;
   return n - Math.floor(n);
 }
+function vnoise(x, y, s) {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = x - ix, fy = y - iy;
+  const u = fx*fx*(3-2*fx), v = fy*fy*(3-2*fy);
+  return hash(ix,iy,s)*(1-u)*(1-v) + hash(ix+1,iy,s)*u*(1-v)
+       + hash(ix,iy+1,s)*(1-u)*v   + hash(ix+1,iy+1,s)*u*v;
+}
+function fbm(x, y, s) {
+  return 0.5*vnoise(x,y,s) + 0.25*vnoise(x*2.1,y*2.1,s+7) + 0.125*vnoise(x*4.3,y*4.3,s+13);
+}
 
+// ── Paper ─────────────────────────────────────────────────────────────────────
 function drawPaper(ctx, W, H, rng) {
-  const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, '#f5f1e8');
-  bg.addColorStop(1, '#ece6d8');
-  ctx.fillStyle = bg;
+  ctx.fillStyle = '#ede6d4';
   ctx.fillRect(0, 0, W, H);
-
   const img = ctx.createImageData(W, H);
   const d = img.data;
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
-      const i = (y * W + x) * 4;
-      const grain = (noise2D(x * 0.9, y * 0.9, 3.1) - 0.5) * 18;
-      const fiber = (noise2D(x * 0.06, y * 1.8, 6.2) - 0.5) * 8;
-      const v = 239 + grain + fiber;
-      d[i] = Math.max(225, Math.min(248, v + 5));
-      d[i + 1] = Math.max(220, Math.min(245, v + 2));
-      d[i + 2] = Math.max(210, Math.min(238, v - 4));
-      d[i + 3] = 28;
+      const i = (y*W+x)*4;
+      const g = (vnoise(x*1.2, y*1.2, 3) - 0.5) * 20;
+      const f = (vnoise(x*0.05, y*2.5, 8) - 0.5) * 8;
+      const t = (fbm(x/W*3, y/H*3, 11) - 0.5) * 16;
+      const v = 237 + g + f + t;
+      d[i]   = Math.max(208, Math.min(252, v+6)) | 0;
+      d[i+1] = Math.max(200, Math.min(246, v+1)) | 0;
+      d[i+2] = Math.max(182, Math.min(230, v-8)) | 0;
+      d[i+3] = 32;
     }
   }
   ctx.putImageData(img, 0, 0);
-
-  ctx.save();
-  ctx.globalAlpha = 0.06;
-  for (let i = 0; i < 1800; i++) {
-    const x = rng.range(0, W);
-    const y = rng.range(0, H);
-    const w = rng.range(8, 60);
-    const h = rng.range(0.4, 1.2);
-    ctx.fillStyle = '#7d7467';
-    ctx.fillRect(x, y, w, h);
+  for (let i = 0; i < 50; i++) {
+    const x = rng.range(0,W), y = rng.range(0,H), r = rng.range(1.5,7);
+    ctx.globalAlpha = rng.range(0.01, 0.045);
+    ctx.fillStyle = rng.pick(['#8b7355','#a0845c','#7a6045']);
+    ctx.beginPath();
+    ctx.ellipse(x, y, r, r*rng.range(0.5,1.5), rng.range(0,Math.PI), 0, Math.PI*2);
+    ctx.fill();
   }
-  ctx.restore();
+  ctx.globalAlpha = 1;
 }
 
-function buildLobePoints(rng, baseR, ox, oy, squashX, squashY, numPts) {
+// ── Shape: organic, pressed-ink half outline ──────────────────────────────────
+// Key fix: lower amplitude high-freq wobble, no big spike multipliers,
+// smoother envelope so it reads as an organic blob not a star
+function buildHalf(rng, base, nPts) {
   const pts = [];
-  for (let i = 0; i < numPts; i++) {
-    const a = (i / numPts) * Math.PI * 2;
-    const wobble1 = 0.82 + rng.next() * 0.52;
-    const wobble2 = 0.94 + Math.sin(a * rng.range(2.2, 5.2) + rng.range(0, Math.PI * 2)) * rng.range(0.06, 0.18);
-    const r = baseR * wobble1 * wobble2;
-    pts.push({
-      x: Math.cos(a) * r * squashX + ox,
-      y: Math.sin(a) * r * squashY + oy
-    });
+  // Pre-bake per-harmonic params so each point uses consistent wave
+  const h1A = rng.range(0.04,0.09), h1F = rng.range(1.6,2.8), h1P = rng.range(0,6.28);
+  const h2A = rng.range(0.02,0.05), h2F = rng.range(3.2,5.5), h2P = rng.range(0,6.28);
+  const h3A = rng.range(0.01,0.025),h3F = rng.range(6,10),    h3P = rng.range(0,6.28);
+  // Base radius varies smoothly along the half (wider in middle, tapers at ends)
+  const bulge = rng.range(0.82, 0.95); // peak radius at center
+  for (let i = 0; i < nPts; i++) {
+    const t = i / nPts;
+    const a = -Math.PI/2 + Math.PI * t;
+    // Envelope: cosine taper so ends pinch naturally
+    // Math.abs required — cos goes negative in lower half, pow(neg, frac) = NaN
+    const env = Math.pow(Math.abs(Math.cos(a * 0.5 + Math.PI*0.5)), rng.range(0.3, 0.7));
+    let r = base * (
+      bulge * (0.75 + env * 0.22)
+      + h1A * Math.sin(a * h1F + h1P)
+      + h2A * Math.sin(a * h2F + h2P)
+      + h3A * Math.sin(a * h3F + h3P)
+    );
+    // Occasional organic bump (NOT a spike — soft Gaussian-ish)
+    if (rng.next() < 0.08) {
+      const bump = rng.range(0.04, 0.10) * base;
+      r += bump;
+    }
+    // Occasional pinch
+    if (rng.next() < 0.06) r *= rng.range(0.70, 0.88);
+
+    pts.push({x:Math.cos(a)*r*rng.range(1.15, 1.50),  // much wider x
+              y:Math.sin(a)*r*rng.range(0.42, 0.58)}); // shorter y
   }
+  pts.unshift({ x: rng.range(0, base*0.008), y: -base * rng.range(0.18,0.28) });
+  pts.push({    x: rng.range(0, base*0.008), y:  base * rng.range(0.18,0.28) });
   return pts;
 }
 
-function smoothClosedPath(ctx, pts) {
+// ── Draw right half of pts, offset by (ox,oy) from the true fold center ───────
+// Then mirror it to the left — both halves share cx as the single fold line
+function foldPath(ctx, pts, cx, cy, ox, oy) {
   const n = pts.length;
+  // Right side: pts[i].x are right-half coords, shifted by ox
   ctx.beginPath();
-  for (let i = 0; i < n; i++) {
-    const p0 = pts[(i - 1 + n) % n];
-    const p1 = pts[i];
-    const p2 = pts[(i + 1) % n];
-    const p3 = pts[(i + 2) % n];
-
-    const cp1x = p1.x + (p2.x - p0.x) / 6;
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
-    const cp2x = p2.x - (p3.x - p1.x) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
-
-    if (i === 0) ctx.moveTo(p1.x, p1.y);
-    ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+  ctx.moveTo(cx + ox + pts[0].x, cy + oy + pts[0].y);
+  for (let i = 0; i < n-1; i++) {
+    const p0=pts[Math.max(0,i-1)], p1=pts[i], p2=pts[i+1], p3=pts[Math.min(n-1,i+2)];
+    ctx.bezierCurveTo(
+      cx+ox+(p1.x+(p2.x-p0.x)/5), cy+oy+(p1.y+(p2.y-p0.y)/5),
+      cx+ox+(p2.x-(p3.x-p1.x)/5), cy+oy+(p2.y-(p3.y-p1.y)/5),
+      cx+ox+p2.x, cy+oy+p2.y
+    );
+  }
+  // Mirror left side: negate both ox AND p.x so it reflects across cx
+  for (let i = n-1; i > 0; i--) {
+    const p0=pts[Math.min(n-1,i+1)], p1=pts[i], p2=pts[i-1], p3=pts[Math.max(0,i-2)];
+    ctx.bezierCurveTo(
+      cx-ox-(p1.x+(p2.x-p0.x)/5), cy+oy+(p1.y+(p2.y-p0.y)/5),
+      cx-ox-(p2.x-(p3.x-p1.x)/5), cy+oy+(p2.y-(p3.y-p1.y)/5),
+      cx-ox-p2.x, cy+oy+p2.y
+    );
   }
   ctx.closePath();
 }
 
-function drawMirroredShape(ctx, cx, cy, drawFn) {
+// ── Render any mass (main or sub) with ink physics, all mirrored from cx ──────
+function renderMass(ctx, rng, pts, cx, cy, ox, oy, base) {
+  const b = base;
+  const mcx = cx + ox; // right-mass visual center for gradients
+
+  // Halo
+  for (let p = 0; p < 10; p++) {
+    ctx.save();
+    ctx.globalAlpha = 0.026;
+    ctx.shadowColor = '#2a1c14';
+    ctx.shadowBlur = rng.range(10, 26);
+    ctx.fillStyle = '#2a1c14';
+    foldPath(ctx, pts, cx, cy, ox, oy);
+    ctx.fill();
+    ctx.restore();
+  }
+  // Mid wicking
+  for (let p = 0; p < 6; p++) {
+    ctx.save();
+    ctx.globalAlpha = 0.055;
+    ctx.shadowColor = '#1c1410';
+    ctx.shadowBlur = rng.range(2, 7);
+    ctx.fillStyle = '#1c1410';
+    foldPath(ctx, pts, cx, cy, ox, oy);
+    ctx.fill();
+    ctx.restore();
+  }
+  // Hard core
   ctx.save();
-  ctx.translate(cx, cy);
-  drawFn(false);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#13100c';
+  foldPath(ctx, pts, cx, cy, ox, oy);
+  ctx.fill();
+  ctx.restore();
+
+  // Internal texture — clip to shape, apply gradients for both sides
   ctx.save();
-  ctx.scale(-1, 1);
-  drawFn(true);
-  ctx.restore();
-  ctx.restore();
-}
+  foldPath(ctx, pts, cx, cy, ox, oy);
+  ctx.clip();
 
-function drawInkBody(ctx, rng, cx, cy, W, H) {
-  const base = Math.min(W, H);
-  const lobes = [];
-
-  lobes.push({
-    ox: rng.range(8, base * 0.028),
-    oy: rng.range(-base * 0.04, base * 0.03),
-    r: base * rng.range(0.16, 0.24),
-    sx: rng.range(0.72, 0.96),
-    sy: rng.range(0.9, 1.24),
-    pts: rng.int(14, 20)
-  });
-
-  const extra = rng.int(3, 6);
-  for (let i = 0; i < extra; i++) {
-    lobes.push({
-      ox: rng.range(base * 0.03, base * 0.18),
-      oy: rng.range(-base * 0.2, base * 0.22),
-      r: base * rng.range(0.05, 0.13),
-      sx: rng.range(0.62, 1.12),
-      sy: rng.range(0.7, 1.35),
-      pts: rng.int(9, 15)
-    });
+  // Pool both right and mirrored-left centers
+  for (const scx of [cx+ox, cx-ox]) {
+    const cg = ctx.createRadialGradient(scx, cy+oy, 0, scx, cy+oy, b*0.42);
+    cg.addColorStop(0,   'rgba(0,0,0,0.50)');
+    cg.addColorStop(0.5, 'rgba(0,0,0,0.12)');
+    cg.addColorStop(1,   'rgba(0,0,0,0)');
+    ctx.fillStyle = cg;
+    ctx.fillRect(cx-b-Math.abs(ox), cy+oy-b, (b+Math.abs(ox))*2, b*2);
   }
 
-  drawMirroredShape(ctx, cx, cy, () => {
-    ctx.save();
-    ctx.globalCompositeOperation = 'multiply';
+  for (let i = 0; i < 20; i++) {
+    const side = rng.next()<0.5 ? cx+ox : cx-ox;
+    const px = side + rng.range(-b*0.8, b*0.8);
+    const py = cy+oy + rng.range(-b*0.8, b*0.8);
+    const pr = rng.range(b*0.03, b*0.13);
+    if (!isFinite(px)||!isFinite(py)||!isFinite(pr)||pr<=0) continue;
+    const dark = rng.next()<0.6, av = rng.range(0.07,0.22);
+    const g = ctx.createRadialGradient(px,py,0,px,py,pr);
+    g.addColorStop(0, dark?`rgba(0,0,0,${av})`:`rgba(50,34,20,${av*0.4})`);
+    g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(cx-b-Math.abs(ox), cy+oy-b, (b+Math.abs(ox))*2, b*2);
+  }
+  ctx.restore();
 
-    // soft outer bleed
-    for (let pass = 0; pass < 18; pass++) {
-      ctx.save();
-      ctx.globalAlpha = 0.028;
-      ctx.filter = `blur(${rng.range(8, 18)}px)`;
-      ctx.fillStyle = rng.pick(['#2b221d', '#211915', '#322721']);
-      for (const lobe of lobes) {
-        const pts = buildLobePoints(
-          rng,
-          lobe.r * rng.range(1.02, 1.12),
-          lobe.ox + rng.range(-base * 0.008, base * 0.012),
-          lobe.oy + rng.range(-base * 0.012, base * 0.012),
-          lobe.sx,
-          lobe.sy,
-          lobe.pts
-        );
-        smoothClosedPath(ctx, pts);
+  // Edge micro-granulation — both sides from cx
+  ctx.fillStyle = '#0f0d0b';
+  for (let i = 0; i < pts.length-1; i++) {
+    const p1=pts[i], p2=pts[i+1];
+    const steps = Math.ceil(Math.hypot(p2.x-p1.x, p2.y-p1.y)/2.4);
+    for (let s = 0; s < steps; s++) {
+      const t2 = s/steps;
+      const bx = p1.x+(p2.x-p1.x)*t2, by = p1.y+(p2.y-p1.y)*t2;
+      for (const side of [1,-1]) {
+        const ex = cx + side*(ox+bx) + rng.range(-1.2,1.2);
+        const ey = cy+oy+by + rng.range(-1.2,1.2);
+        const er = rng.range(0.2,1.3);
+        ctx.globalAlpha = rng.range(0.08,0.44);
+        ctx.beginPath();
+        ctx.ellipse(ex,ey,er,er*rng.range(0.4,1.8),rng.range(0,Math.PI),0,Math.PI*2);
         ctx.fill();
       }
-      ctx.restore();
     }
-
-    // mid ink body
-    for (let pass = 0; pass < 9; pass++) {
-      ctx.save();
-      ctx.globalAlpha = 0.08;
-      ctx.filter = `blur(${rng.range(1.5, 4.5)}px)`;
-      ctx.fillStyle = rng.pick(['#181210', '#120d0b', '#211814']);
-      for (const lobe of lobes) {
-        const pts = buildLobePoints(
-          rng,
-          lobe.r * rng.range(0.98, 1.02),
-          lobe.ox + rng.range(-base * 0.004, base * 0.004),
-          lobe.oy + rng.range(-base * 0.004, base * 0.004),
-          lobe.sx,
-          lobe.sy,
-          lobe.pts
-        );
-        smoothClosedPath(ctx, pts);
-        ctx.fill();
-      }
-      ctx.restore();
-    }
-
-    // dark wet core
-    ctx.save();
-    ctx.globalAlpha = 0.92;
-    ctx.fillStyle = '#120d0c';
-    for (const lobe of lobes) {
-      const pts = buildLobePoints(rng, lobe.r * 0.88, lobe.ox, lobe.oy, lobe.sx, lobe.sy, lobe.pts);
-      smoothClosedPath(ctx, pts);
-      ctx.fill();
-    }
-    ctx.restore();
-
-    // internal watery tonal pockets
-    for (let i = 0; i < 14; i++) {
-      ctx.save();
-      ctx.globalAlpha = rng.range(0.035, 0.07);
-      ctx.filter = `blur(${rng.range(6, 16)}px)`;
-      ctx.fillStyle = '#5a4a42';
-      const rx = rng.range(base * 0.02, base * 0.18);
-      const ry = rng.range(-base * 0.18, base * 0.18);
-      const rw = rng.range(base * 0.02, base * 0.09);
-      const rh = rng.range(base * 0.02, base * 0.12);
-      ctx.beginPath();
-      ctx.ellipse(rx, ry, rw, rh, rng.range(-0.8, 0.8), 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-
-    ctx.restore();
-  });
-
-  // seam/paper fold impression
-  const fold = ctx.createLinearGradient(cx - 16, 0, cx + 16, 0);
-  fold.addColorStop(0, 'rgba(120,108,92,0)');
-  fold.addColorStop(0.5, 'rgba(120,108,92,0.12)');
-  fold.addColorStop(1, 'rgba(120,108,92,0)');
-  ctx.fillStyle = fold;
-  ctx.fillRect(cx - 20, 0, 40, H);
+  }
+  ctx.globalAlpha = 1;
 }
 
-function drawDrips(ctx, rng, cx, cy, W, H) {
-  const base = Math.min(W, H);
-  const drips = rng.int(2, 5);
-  for (let i = 0; i < drips; i++) {
-    const dx = rng.range(base * 0.04, base * 0.16);
-    const dy = rng.range(base * 0.12, base * 0.27);
-    const length = rng.range(base * 0.08, base * 0.22);
-    const width = rng.range(base * 0.006, base * 0.015);
+// ── Secondary blobs: lobes/feet anchored to the main fold ────────────────────
+function buildOrganic(rng, base, nPts) {
+  const h1A=rng.range(0.04,0.10), h1F=rng.range(1.4,2.8), h1P=rng.range(0,6.28);
+  const h2A=rng.range(0.02,0.06), h2F=rng.range(3.0,6.0), h2P=rng.range(0,6.28);
+  const h3A=rng.range(0.01,0.03), h3F=rng.range(6,11),    h3P=rng.range(0,6.28);
+  const bulge=rng.range(0.80,0.94);
+  const pts=[];
+  for (let i=0;i<nPts;i++) {
+    const t=i/nPts, a=-Math.PI/2+Math.PI*t;
+    const env=Math.pow(Math.abs(Math.cos(a*0.5+Math.PI*0.5)),rng.range(0.3,0.7));
+    let r=base*(bulge*(0.75+env*0.22)+h1A*Math.sin(a*h1F+h1P)+h2A*Math.sin(a*h2F+h2P)+h3A*Math.sin(a*h3F+h3P));
+    if(rng.next()<0.09) r+=base*rng.range(0.04,0.10);
+    if(rng.next()<0.07) r*=rng.range(0.68,0.86);
+    pts.push({x:Math.cos(a)*r*rng.range(1.10,1.45), y:Math.sin(a)*r*rng.range(0.40,0.58)});
+  }
+  pts.unshift({x:rng.range(0,base*0.01), y:-base*rng.range(0.16,0.26)});
+  pts.push({   x:rng.range(0,base*0.01), y: base*rng.range(0.16,0.26)});
+  return pts;
+}
 
-    drawMirroredShape(ctx, cx, cy, () => {
+function drawSubBlobs(ctx, rng, cx, cy, base) {
+  const count = rng.int(2, 3);
+  for (let b = 0; b < count; b++) {
+    const subBase = base * rng.range(0.24, 0.42);
+    const subPts  = buildOrganic(rng, subBase, rng.int(14, 22));
+    // ox: offset from fold — small means close to center seam
+    // oy: positive = below center
+    const ox = rng.range(base*0.04, base*0.20);
+    const oy = rng.range(base*0.18, base*0.55);
+    renderMass(ctx, rng, subPts, cx, cy, ox, oy, subBase);
+  }
+}
+
+// ── Secondary symmetric blob: side wings/lobes, also from the same fold ───────
+function drawSecondaryBlob(ctx, rng, cx, cy, base) {
+  if (rng.next() < 0.25) return;
+  const secBase = base * rng.range(0.30, 0.50);
+  const secPts  = buildOrganic(rng, secBase, rng.int(18, 28));
+  // Laterally offset — sits to the side of the main body
+  const ox = rng.range(base*0.30, base*0.56);
+  const oy = rng.range(-base*0.18, base*0.18);
+  renderMass(ctx, rng, secPts, cx, cy, ox, oy, secBase);
+}
+
+// ── Negative space: paper-colored blobs cut into the ink mass ────────────────
+// Use the exact same shape-building pipeline as the main blob,
+// filled with paper color — no halo, no glow, just ink-edge detail
+function drawNegativeBlobs(ctx, rng, cx, cy, base) {
+  if (rng.next() < 0.25) return;
+  const count = rng.int(2, 4); // more of them
+  for (let b = 0; b < count; b++) {
+    const scale = rng.range(0.07, 0.14); // smaller
+    const nPts  = rng.int(16, 24);
+    const subBase = base * scale;
+
+    // Portrait ratio — narrow x, tall y — opposite of main shape
+    const h1A = rng.range(0.04,0.11), h1F = rng.range(1.5,3.0), h1P = rng.range(0,6.28);
+    const h2A = rng.range(0.02,0.06), h2F = rng.range(3.5,6.5), h2P = rng.range(0,6.28);
+    const h3A = rng.range(0.01,0.03), h3F = rng.range(7,13),    h3P = rng.range(0,6.28);
+    const bulge = rng.range(0.80, 0.94);
+    const negPts = [];
+    for (let i = 0; i < nPts; i++) {
+      const t = i / nPts;
+      const a = -Math.PI/2 + Math.PI * t;
+      const env = Math.pow(Math.abs(Math.cos(a * 0.5 + Math.PI*0.5)), rng.range(0.3,0.7));
+      let r = subBase * (
+        bulge * (0.75 + env * 0.22)
+        + h1A * Math.sin(a*h1F+h1P)
+        + h2A * Math.sin(a*h2F+h2P)
+        + h3A * Math.sin(a*h3F+h3P)
+      );
+      if (rng.next()<0.10) r += subBase*rng.range(0.04,0.10);
+      if (rng.next()<0.08) r *= rng.range(0.65,0.85);
+      negPts.push({
+        x: Math.cos(a)*r*rng.range(0.45, 0.70), // narrow — portrait
+        y: Math.sin(a)*r*rng.range(1.10, 1.45)  // tall
+      });
+    }
+    negPts.unshift({x: rng.range(0,subBase*0.01), y: -subBase*rng.range(0.55,0.72)});
+    negPts.push({   x: rng.range(0,subBase*0.01), y:  subBase*rng.range(0.55,0.72)});
+
+    // Spread vertically — stack them at different y offsets
+    const ox = rng.range(base*0.03, base*0.16);
+    const oy = rng.range(-base*0.22, base*0.18);
+
+    const drawNegShape = (nox) => {
+      // 1. Hard paper-color fill using foldPath so it mirrors from cx
       ctx.save();
-      ctx.globalAlpha = 0.18;
-      ctx.filter = 'blur(5px)';
-      ctx.strokeStyle = '#2b221d';
-      ctx.lineCap = 'round';
-      ctx.lineWidth = width * 2.8;
-      ctx.beginPath();
-      ctx.moveTo(dx, dy - length * 0.15);
-      ctx.bezierCurveTo(dx + width * 2, dy + length * 0.15, dx - width, dy + length * 0.5, dx, dy + length);
+      ctx.fillStyle = '#ece5d3';
+      ctx.globalAlpha = 0.88;
+      foldPath(ctx, negPts, cx, cy+oy, nox, 0);
+      ctx.fill();
+      ctx.restore();
+
+      // 2. Inner shadow stroke
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      ctx.shadowColor = '#111008';
+      ctx.shadowBlur = 4;
+      ctx.shadowOffsetY = 1;
+      ctx.strokeStyle = '#1a1208';
+      ctx.lineWidth = 0.8;
+      foldPath(ctx, negPts, cx, cy+oy, nox, 0);
       ctx.stroke();
       ctx.restore();
 
-      ctx.save();
-      ctx.globalAlpha = 0.72;
-      ctx.strokeStyle = '#171110';
-      ctx.lineCap = 'round';
-      ctx.lineWidth = width;
-      ctx.beginPath();
-      ctx.moveTo(dx, dy - length * 0.1);
-      ctx.bezierCurveTo(dx + width * 1.8, dy + length * 0.15, dx - width * 1.2, dy + length * 0.55, dx, dy + length);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.ellipse(dx, dy + length + width * 0.8, width * 1.8, width * 2.4, 0, 0, Math.PI * 2);
-      ctx.fillStyle = '#171110';
-      ctx.fill();
-      ctx.restore();
-    });
+      // 3. Edge granulation on both sides from cx
+      ctx.fillStyle = '#ece0cb';
+      for (let i = 0; i < negPts.length-1; i++) {
+        const p1=negPts[i], p2=negPts[i+1];
+        const steps = Math.ceil(Math.hypot(p2.x-p1.x, p2.y-p1.y)/2.0);
+        for (let s = 0; s < steps; s++) {
+          const t2 = s/steps;
+          const bx=p1.x+(p2.x-p1.x)*t2, by=p1.y+(p2.y-p1.y)*t2;
+          for (const side of [1,-1]) {
+            const ex = cx+side*(nox+bx)+rng.range(-0.8,0.8);
+            const ey = cy+oy+by+rng.range(-0.8,0.8);
+            const er = rng.range(0.2,1.1);
+            ctx.globalAlpha = rng.range(0.08,0.40);
+            ctx.beginPath();
+            ctx.ellipse(ex,ey,er,er*rng.range(0.4,1.8),rng.range(0,Math.PI),0,Math.PI*2);
+            ctx.fill();
+          }
+        }
+      }
+      ctx.globalAlpha = 1;
+    };
+
+    drawNegShape(ox);
   }
 }
 
-function drawSplatter(ctx, rng, cx, cy, W, H) {
-  const base = Math.min(W, H);
-  const count = rng.int(120, 240);
-  for (let i = 0; i < count; i++) {
-    const a = rng.range(0, Math.PI * 2);
-    const dist = Math.pow(rng.next(), 0.72) * base * 0.42;
-    const x = Math.cos(a) * dist + rng.range(base * 0.01, base * 0.03);
-    const y = Math.sin(a) * dist;
-    const r = Math.pow(rng.next(), 1.8) * base * 0.008 + 0.4;
-    const alpha = rng.range(0.06, 0.28);
-
-    drawMirroredShape(ctx, cx, cy, () => {
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = rng.pick(['#1e1714', '#2e241f', '#3a2d27']);
-      ctx.beginPath();
-      ctx.ellipse(x, y, r * rng.range(0.8, 1.8), r * rng.range(0.7, 1.6), rng.range(-1, 1), 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    });
+// ── Edge fade ─────────────────────────────────────────────────────────────────
+function drawEdgeFade(ctx, rng, cx, cy, pts, base) {
+  for (let pass = 0; pass < 8; pass++) {
+    ctx.save();
+    ctx.globalAlpha = 0.020;
+    ctx.shadowColor = '#2e2018';
+    ctx.shadowBlur = rng.range(16, 38);
+    ctx.fillStyle = '#2e2018';
+    foldPath(ctx, pts, cx, cy, 0, 0);
+    ctx.fill();
+    ctx.restore();
+  }
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    if (!isFinite(p.x) || !isFinite(p.y)) continue;
+    for (const sign of [1,-1]) {
+      const ex = cx+sign*p.x, ey = cy+p.y;
+      const dist = Math.hypot(p.x,p.y)/base;
+      if (dist < 0.52 || !isFinite(dist)) continue;
+      const fadeR = rng.range(base*0.04,base*0.10);
+      const fadeA = rng.range(0.06,0.17)*Math.pow((dist-0.52)/0.48,0.65);
+      const fg = ctx.createRadialGradient(ex,ey,0,ex,ey,fadeR);
+      fg.addColorStop(0,`rgba(237,230,212,${fadeA})`);
+      fg.addColorStop(1,'rgba(237,230,212,0)');
+      ctx.fillStyle = fg;
+      ctx.fillRect(ex-fadeR,ey-fadeR,fadeR*2,fadeR*2);
+    }
   }
 }
 
+// ── Streaks ───────────────────────────────────────────────────────────────────
+function drawStreaks(ctx, rng, cx, cy, base) {
+  const n = rng.int(4, 9);
+  for (let i = 0; i < n; i++) {
+    const a = rng.range(0,Math.PI*2);
+    const startD = rng.range(base*0.28,base*0.50);
+    const len    = rng.range(base*0.05,base*0.20);
+    const sx = cx+Math.cos(a)*startD, sy = cy+Math.sin(a)*startD*0.9;
+    const ex = cx+Math.cos(a)*(startD+len), ey = cy+Math.sin(a)*(startD+len)*0.9;
+    const w = rng.range(0.3,0.9);
+    ctx.save();
+    const sg = ctx.createLinearGradient(sx,sy,ex,ey);
+    sg.addColorStop(0,`rgba(22,16,12,${rng.range(0.18,0.45)})`);
+    sg.addColorStop(1,'rgba(22,16,12,0)');
+    ctx.strokeStyle = sg;
+    ctx.lineWidth = w; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(sx,sy);
+    ctx.quadraticCurveTo(
+      (sx+ex)/2+rng.range(-base*0.018,base*0.018),
+      (sy+ey)/2+rng.range(-base*0.018,base*0.018),
+      ex, ey
+    );
+    ctx.stroke();
+    if (rng.next()<0.5) {
+      ctx.globalAlpha = rng.range(0.08,0.28);
+      ctx.fillStyle = '#16100d';
+      ctx.beginPath(); ctx.arc(ex,ey,w*rng.range(0.8,2.0),0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+// ── Splatter ──────────────────────────────────────────────────────────────────
+function drawSplatter(ctx, rng, cx, cy, base) {
+  const total = rng.int(180, 300);
+  for (let i = 0; i < total; i++) {
+    const a = rng.range(0,Math.PI*2);
+    const minD = base*0.38, maxD = base*1.12;
+    const d = minD+Math.pow(rng.next(),1.5)*(maxD-minD);
+    const x = cx+Math.cos(a)*d, y = cy+Math.sin(a)*d*0.84;
+    const r = Math.pow(rng.next(),2.0)*base*0.015+0.4;
+    const v = rng.int(55,115);
+    const alpha = rng.range(0.10,0.50)*(1-(d-minD)/(maxD-minD)*0.65);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = `rgb(${v},${v-4},${v-9})`;
+    ctx.beginPath();
+    ctx.ellipse(x,y,r,r*rng.range(0.45,1.7),rng.range(0,Math.PI),0,Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// ── Symmetric ink dot clusters ────────────────────────────────────────────────
+// 2–4 cluster pairs, each mirrored around cx. Dots are dark ink, not gray splatter.
+function drawSymmetricDots(ctx, rng, cx, cy, base) {
+  const nClusters = rng.int(2, 4);
+  for (let c = 0; c < nClusters; c++) {
+    // Cluster center — offset from fold, random y position
+    const cox = rng.range(base*0.12, base*0.55);
+    const coy = rng.range(-base*0.30, base*0.30);
+    const nDots = rng.int(5, 14);
+
+    for (let d = 0; d < nDots; d++) {
+      // Spread dots in a loose organic cloud around cluster center
+      const a   = rng.range(0, Math.PI*2);
+      const rad = Math.pow(rng.next(), 0.7) * base*0.055;
+      const dx  = Math.cos(a)*rad + rng.range(-2,2);
+      const dy  = Math.sin(a)*rad + rng.range(-2,2);
+      const r   = Math.pow(rng.next(), 1.8) * base*0.018 + 0.8;
+      const alpha = rng.range(0.45, 0.92);
+
+      // Draw on both sides — same offset, mirrored
+      for (const side of [1, -1]) {
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = '#131009';
+        ctx.beginPath();
+        ctx.ellipse(
+          cx + side*(cox+dx), cy + coy + dy,
+          r, r*rng.range(0.5,1.5), rng.range(0,Math.PI), 0, Math.PI*2
+        );
+        ctx.fill();
+        // Tiny shadow to seat dot on paper
+        ctx.globalAlpha = alpha*0.3;
+        ctx.shadowColor = '#0a0804';
+        ctx.shadowBlur = 2;
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+  }
+}
+
+// ── Crease ────────────────────────────────────────────────────────────────────
+function drawCrease(ctx, cx, H) {
+  ctx.save();
+  ctx.globalAlpha = 0.16;
+  ctx.strokeStyle = '#4e3e2e'; ctx.lineWidth = 0.7;
+  ctx.beginPath(); ctx.moveTo(cx,0); ctx.lineTo(cx,H); ctx.stroke();
+  ctx.globalAlpha = 0.08;
+  ctx.strokeStyle = '#f2e8d2'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(cx+1,0); ctx.lineTo(cx+1,H); ctx.stroke();
+  ctx.restore();
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
 function draw() {
   const canvas = document.getElementById('c');
-  const W = window.innerWidth;
-  const H = window.innerHeight;
-  canvas.width = W;
-  canvas.height = H;
+  const W = window.innerWidth, H = window.innerHeight;
+  canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
 
   const rng = makeRng(Math.floor(Date.now() / 1000));
   drawPaper(ctx, W, H, rng);
 
-  const cx = W / 2;
-  const cy = H / 2;
+  const cx = W/2, cy = H/2;
+  const base = Math.min(W,H) * 0.46;
+  const pts = buildHalf(rng, base, rng.int(26, 36));
 
-  drawInkBody(ctx, rng, cx, cy, W, H);
-  drawDrips(ctx, rng, cx, cy, W, H);
-  drawSplatter(ctx, rng, cx, cy, W, H);
-
-  // faint outer shadow to seat the blot in the paper
+  // Drop shadow
   ctx.save();
-  ctx.globalAlpha = 0.08;
-  ctx.filter = 'blur(18px)';
-  ctx.fillStyle = '#2c241f';
-  ctx.beginPath();
-  ctx.ellipse(cx, cy + Math.min(W, H) * 0.02, Math.min(W, H) * 0.25, Math.min(W, H) * 0.18, 0, 0, Math.PI * 2);
+  ctx.globalAlpha = 0.09;
+  ctx.shadowColor = '#1e1408';
+  ctx.shadowBlur = 24;
+  ctx.shadowOffsetY = 5;
+  ctx.fillStyle = '#1e1408';
+  foldPath(ctx, pts, cx, cy, 0, 0);
   ctx.fill();
+  ctx.restore();
+
+  renderMass(ctx, rng, pts, cx, cy, 0, 0, base);
+  drawSecondaryBlob(ctx, rng, cx, cy, base);
+  drawSubBlobs(ctx, rng, cx, cy, base);
+  drawNegativeBlobs(ctx, rng, cx, cy, base);
+  drawEdgeFade(ctx, rng, cx, cy, pts, base);
+  drawCrease(ctx, cx, H);
+  drawSymmetricDots(ctx, rng, cx, cy, base);
+  drawStreaks(ctx, rng, cx, cy, base);
+  drawSplatter(ctx, rng, cx, cy, base);
+
+  // Grain overlay
+  ctx.save();
+  ctx.globalAlpha = 0.036;
+  ctx.fillStyle = '#000';
+  for (let i = 0; i < 18000; i++) {
+    ctx.fillRect(Math.random()*W, Math.random()*H, 1, 1);
+  }
   ctx.restore();
 }
 
