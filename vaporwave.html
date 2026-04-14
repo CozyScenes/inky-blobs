@@ -30,97 +30,92 @@ function makeRng(seed) {
 function rgba(r,g,b,a){ return `rgba(${r},${g},${b},${a})`; }
 function rgb(r,g,b)   { return `rgb(${r},${g},${b})`; }
 
+// E-INK PALETTE DESIGN RULES:
+// - Sky: light (200-255) so stars and sun read clearly
+// - Sun: white/very light with dark scan lines
+// - Mountains: near-black (0-40) solid silhouettes — max contrast vs sky
+// - Floor: medium gray (80-140) so grid lines read
+// - Grid lines: dark (0-60) on medium floor
+// - Stars: dark dots on light sky (inverted from color version)
+
 const PALETTES = [
   {
-    name:'classic',
-    skyT:rgba(8,2,22,1), skyM:rgba(26,5,51,1), skyB:rgba(45,11,92,1),
-    sunA:rgba(255,0,128,1), sunB:rgba(255,180,70,1), sunC:rgba(200,0,80,1),
-    sunGlow:rgba(255,0,128,0.12),
-    grid:rgba(255,0,255,1), gridA:rgba(255,0,255,0.7), gridF:rgba(255,0,255,0),
-    floorT:rgba(45,11,92,1), floorB:rgba(8,2,22,1),
-    mtn:[[8,0,40],[22,0,70],[60,0,130]],
-    scanA:rgba(255,0,128,0.10),
-    star:rgba(255,220,255,1), accent:rgba(0,255,255,1),
-    sunLine:rgba(8,2,22,0.75),
-    reflA:rgba(255,100,200,0.38), reflB:rgba(255,0,128,0),
+    name:'paper day',
+    // Light cream sky
+    skyT:rgba(245,242,234,1), skyM:rgba(225,220,208,1), skyB:rgba(195,190,175,1),
+    // Bright white sun, dark scan lines
+    sunA:rgba(255,255,255,1), sunB:rgba(240,236,222,1), sunC:rgba(220,215,200,1),
+    sunGlow:rgba(180,170,150,0.20),
+    // Dark grid on medium-dark floor
+    grid:rgba(40,38,30,1), gridA:rgba(40,38,30,0.9), gridF:rgba(40,38,30,0),
+    floorT:rgba(130,126,114,1), floorB:rgba(55,52,44,1),
+    // Near-black mountain silhouettes — max contrast
+    mtn:[[12,10,8],[28,25,20],[55,50,42]],
+    scanA:rgba(0,0,0,0.06),
+    // Dark stars on light sky
+    star:rgba(20,18,12,1), accent:rgba(20,18,12,1),
+    sunLine:rgba(40,36,28,0.80),
+    reflA:rgba(255,255,255,0.35), reflB:rgba(255,255,255,0),
   },
   {
-    name:'teal dream',
-    skyT:rgba(0,10,30,1), skyM:rgba(0,30,60,1), skyB:rgba(0,55,80,1),
-    sunA:rgba(0,255,200,1), sunB:rgba(0,220,255,1), sunC:rgba(0,180,220,1),
-    sunGlow:rgba(0,255,200,0.10),
-    grid:rgba(0,255,180,1), gridA:rgba(0,255,180,0.7), gridF:rgba(0,255,180,0),
-    floorT:rgba(0,55,80,1), floorB:rgba(0,10,30,1),
-    mtn:[[0,15,40],[0,28,55],[0,45,70]],
-    scanA:rgba(0,255,200,0.10),
-    star:rgba(180,255,240,1), accent:rgba(255,100,0,1),
-    sunLine:rgba(0,10,30,0.75),
-    reflA:rgba(0,255,200,0.35), reflB:rgba(0,255,200,0),
+    name:'ink night',
+    // Medium-dark sky — lighter than mountains
+    skyT:rgba(88,84,72,1), skyM:rgba(68,64,54,1), skyB:rgba(50,47,38,1),
+    // Very bright sun
+    sunA:rgba(255,255,250,1), sunB:rgba(245,240,225,1), sunC:rgba(230,224,205,1),
+    sunGlow:rgba(255,255,220,0.18),
+    // Light grid on dark floor
+    grid:rgba(200,196,180,1), gridA:rgba(200,196,180,0.85), gridF:rgba(200,196,180,0),
+    floorT:rgba(30,28,22,1), floorB:rgba(10,9,6,1),
+    // Black mountains
+    mtn:[[8,7,5],[18,16,12],[35,32,25]],
+    scanA:rgba(200,196,180,0.08),
+    star:rgba(235,230,215,1), accent:rgba(235,230,215,1),
+    sunLine:rgba(10,9,6,0.85),
+    reflA:rgba(245,240,225,0.30), reflB:rgba(245,240,225,0),
   },
   {
-    name:'sunset',
-    skyT:rgba(15,5,0,1), skyM:rgba(60,18,0,1), skyB:rgba(130,35,0,1),
-    sunA:rgba(255,220,0,1), sunB:rgba(255,130,0,1), sunC:rgba(255,50,0,1),
-    sunGlow:rgba(255,150,0,0.12),
-    grid:rgba(255,90,0,1), gridA:rgba(255,90,0,0.7), gridF:rgba(255,90,0,0),
-    floorT:rgba(80,20,0,1), floorB:rgba(15,5,0,1),
-    mtn:[[30,8,0],[55,15,0],[90,25,0]],
-    scanA:rgba(255,90,0,0.10),
-    star:rgba(255,240,160,1), accent:rgba(255,0,150,1),
-    sunLine:rgba(15,5,0,0.75),
-    reflA:rgba(255,200,0,0.35), reflB:rgba(255,130,0,0),
+    name:'dusk',
+    // Mid-tone sky gradient — light top, darker at horizon
+    skyT:rgba(210,205,188,1), skyM:rgba(170,164,148,1), skyB:rgba(120,115,100,1),
+    sunA:rgba(255,255,245,1), sunB:rgba(248,242,225,1), sunC:rgba(235,228,208,1),
+    sunGlow:rgba(240,235,210,0.22),
+    grid:rgba(25,23,18,1), gridA:rgba(25,23,18,0.9), gridF:rgba(25,23,18,0),
+    floorT:rgba(95,90,78,1), floorB:rgba(30,28,22,1),
+    mtn:[[10,9,6],[22,20,15],[45,42,34]],
+    scanA:rgba(0,0,0,0.05),
+    star:rgba(15,13,9,1), accent:rgba(15,13,9,1),
+    sunLine:rgba(30,27,20,0.82),
+    reflA:rgba(255,252,238,0.32), reflB:rgba(255,252,238,0),
   },
   {
-    name:'purple haze',
-    skyT:rgba(5,0,18,1), skyM:rgba(18,0,40,1), skyB:rgba(40,0,80,1),
-    sunA:rgba(200,80,255,1), sunB:rgba(255,160,255,1), sunC:rgba(150,0,255,1),
-    sunGlow:rgba(200,0,255,0.12),
-    grid:rgba(180,0,255,1), gridA:rgba(180,0,255,0.7), gridF:rgba(180,0,255,0),
-    floorT:rgba(40,0,80,1), floorB:rgba(5,0,18,1),
-    mtn:[[18,0,40],[38,0,80],[65,0,130]],
-    scanA:rgba(180,0,255,0.10),
-    star:rgba(220,180,255,1), accent:rgba(0,255,160,1),
-    sunLine:rgba(5,0,18,0.75),
-    reflA:rgba(200,80,255,0.35), reflB:rgba(180,0,255,0),
-  },
-  {
-    name:'miami',
-    skyT:rgba(0,0,18,1), skyM:rgba(0,10,40,1), skyB:rgba(0,20,65,1),
-    sunA:rgba(255,20,140,1), sunB:rgba(255,100,180,1), sunC:rgba(220,0,100,1),
-    sunGlow:rgba(255,20,140,0.12),
-    grid:rgba(0,190,255,1), gridA:rgba(0,190,255,0.7), gridF:rgba(0,190,255,0),
-    floorT:rgba(0,20,65,1), floorB:rgba(0,0,18,1),
-    mtn:[[0,8,28],[0,16,42],[0,25,58]],
-    scanA:rgba(0,190,255,0.10),
-    star:rgba(200,240,255,1), accent:rgba(255,20,140,1),
-    sunLine:rgba(0,0,18,0.75),
-    reflA:rgba(255,20,140,0.35), reflB:rgba(0,190,255,0),
-  },
-  {
-    name:'eink paper',
-    skyT:rgba(240,238,230,1), skyM:rgba(200,195,182,1), skyB:rgba(150,144,130,1),
-    sunA:rgba(255,255,255,1), sunB:rgba(220,215,200,1), sunC:rgba(180,175,160,1),
-    sunGlow:rgba(0,0,0,0.05),
-    grid:rgba(20,18,12,1), gridA:rgba(20,18,12,0.8), gridF:rgba(20,18,12,0),
-    floorT:rgba(80,78,70,1), floorB:rgba(20,18,12,1),
-    mtn:[[30,28,22],[55,52,44],[90,86,76]],
+    name:'high contrast',
+    // Pure white sky
+    skyT:rgba(255,255,255,1), skyM:rgba(235,232,222,1), skyB:rgba(200,196,182,1),
+    sunA:rgba(255,255,255,1), sunB:rgba(255,255,255,1), sunC:rgba(245,242,232,1),
+    sunGlow:rgba(150,145,130,0.15),
+    grid:rgba(15,14,10,1), gridA:rgba(15,14,10,0.95), gridF:rgba(15,14,10,0),
+    floorT:rgba(145,140,126,1), floorB:rgba(40,38,30,1),
+    // Absolute black mountains
+    mtn:[[4,3,2],[10,9,6],[22,20,15]],
     scanA:rgba(0,0,0,0.07),
-    star:rgba(255,255,255,1), accent:rgba(20,18,12,1),
-    sunLine:rgba(240,238,230,0.85),
-    reflA:rgba(255,255,255,0.28), reflB:rgba(255,255,255,0),
+    star:rgba(10,9,6,1), accent:rgba(10,9,6,1),
+    sunLine:rgba(20,18,12,0.88),
+    reflA:rgba(255,255,255,0.40), reflB:rgba(255,255,255,0),
   },
   {
-    name:'eink ink',
-    skyT:rgba(8,8,6,1), skyM:rgba(22,20,16,1), skyB:rgba(45,42,36,1),
-    sunA:rgba(240,235,220,1), sunB:rgba(200,194,178,1), sunC:rgba(160,154,138,1),
-    sunGlow:rgba(240,235,220,0.08),
-    grid:rgba(200,195,180,1), gridA:rgba(200,195,180,0.7), gridF:rgba(200,195,180,0),
-    floorT:rgba(40,38,32,1), floorB:rgba(8,8,6,1),
-    mtn:[[12,11,8],[25,23,18],[45,42,35]],
-    scanA:rgba(200,195,180,0.07),
-    star:rgba(240,235,220,1), accent:rgba(200,195,180,1),
-    sunLine:rgba(8,8,6,0.80),
-    reflA:rgba(240,235,220,0.28), reflB:rgba(240,235,220,0),
+    name:'graphite',
+    // Stepped graphite tones — 4-bit feel
+    skyT:rgba(220,216,204,1), skyM:rgba(185,180,166,1), skyB:rgba(148,143,130,1),
+    sunA:rgba(255,255,252,1), sunB:rgba(242,238,224,1), sunC:rgba(225,220,205,1),
+    sunGlow:rgba(200,195,178,0.18),
+    grid:rgba(35,33,26,1), gridA:rgba(35,33,26,0.88), gridF:rgba(35,33,26,0),
+    floorT:rgba(110,106,95,1), floorB:rgba(38,36,28,1),
+    mtn:[[8,7,5],[20,18,14],[42,39,32]],
+    scanA:rgba(0,0,0,0.06),
+    star:rgba(18,16,11,1), accent:rgba(18,16,11,1),
+    sunLine:rgba(35,32,24,0.80),
+    reflA:rgba(252,250,240,0.30), reflB:rgba(252,250,240,0),
   },
 ];
 
@@ -136,21 +131,21 @@ function drawSky(W, H, pal, rng) {
 }
 
 function drawStars(W, horizon, pal, rng) {
-  const n = rng.int(60, 200);
+  const n = rng.int(40, 120);
   for (let i = 0; i < n; i++) {
     const x = rng.range(0, W), y = rng.range(0, horizon*0.88);
     ctx.save();
-    ctx.globalAlpha = rng.range(0.5, 1.0);
+    ctx.globalAlpha = rng.range(0.4, 0.85);
     ctx.fillStyle = pal.star;
-    ctx.beginPath(); ctx.arc(x, y, rng.range(0.5, 2.0), 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, rng.range(0.8, 2.2), 0, Math.PI*2); ctx.fill();
     ctx.restore();
   }
-  if (rng.bool(0.4)) {
+  if (rng.bool(0.35)) {
     const sx=rng.range(W*0.1,W*0.9), sy=rng.range(0,horizon*0.3);
-    const len=rng.range(30,90), ang=rng.range(-0.4,-0.1);
+    const len=rng.range(30,80), ang=rng.range(-0.4,-0.1);
     const sg=ctx.createLinearGradient(sx,sy,sx+len*Math.cos(ang),sy+len*Math.sin(ang));
-    sg.addColorStop(0,pal.star); sg.addColorStop(1,'rgba(255,255,255,0)');
-    ctx.save(); ctx.strokeStyle=sg; ctx.lineWidth=1.2; ctx.globalAlpha=0.8;
+    sg.addColorStop(0, pal.star); sg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.save(); ctx.strokeStyle=sg; ctx.lineWidth=1.5; ctx.globalAlpha=0.7;
     ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(sx+len*Math.cos(ang),sy+len*Math.sin(ang)); ctx.stroke();
     ctx.restore();
   }
@@ -177,13 +172,13 @@ function drawSun(W, horizon, pal, rng) {
 
   ctx.save();
   ctx.beginPath(); ctx.arc(cx, cy, r-0.5, 0, Math.PI*2); ctx.clip();
-  const lCount = rng.int(8, 20);
+  const lCount = rng.int(10, 22);
   const lStep  = r / lCount;
   for (let i = 0; i < lCount; i++) {
     const ly = cy + i * lStep;
-    ctx.globalAlpha = rng.range(0.5, 0.85);
+    ctx.globalAlpha = rng.range(0.65, 0.92);
     ctx.fillStyle = pal.sunLine;
-    ctx.fillRect(cx-r, ly, r*2, lStep*rng.range(0.25,0.45));
+    ctx.fillRect(cx-r, ly, r*2, lStep*rng.range(0.28,0.48));
   }
   ctx.restore();
 
