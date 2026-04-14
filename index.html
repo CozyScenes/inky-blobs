@@ -245,7 +245,7 @@ function buildOrganic(rng, base, nPts) {
 }
 
 function drawSubBlobs(ctx, rng, cx, cy, base) {
-  const count = rng.int(2, 3);
+  const count = rng.int(3, 5);
   for (let b = 0; b < count; b++) {
     const subBase = base * rng.range(0.24, 0.42);
     const subPts  = buildOrganic(rng, subBase, rng.int(14, 22));
@@ -259,7 +259,7 @@ function drawSubBlobs(ctx, rng, cx, cy, base) {
 
 // ── Secondary symmetric blob: side wings/lobes, also from the same fold ───────
 function drawSecondaryBlob(ctx, rng, cx, cy, base) {
-  if (rng.next() < 0.25) return;
+  if (rng.next() < 0.08) return;
   const secBase = base * rng.range(0.30, 0.50);
   const secPts  = buildOrganic(rng, secBase, rng.int(18, 28));
   // Laterally offset — sits to the side of the main body
@@ -272,8 +272,8 @@ function drawSecondaryBlob(ctx, rng, cx, cy, base) {
 // Use the exact same shape-building pipeline as the main blob,
 // filled with paper color — no halo, no glow, just ink-edge detail
 function drawNegativeBlobs(ctx, rng, cx, cy, base) {
-  if (rng.next() < 0.25) return;
-  const count = rng.int(2, 4); // more of them
+  if (rng.next() < 0.1) return;
+  const count = rng.int(2, 5);
   for (let b = 0; b < count; b++) {
     const scale = rng.range(0.07, 0.14); // smaller
     const nPts  = rng.int(16, 24);
@@ -388,32 +388,35 @@ function drawEdgeFade(ctx, rng, cx, cy, pts, base) {
 
 // ── Streaks ───────────────────────────────────────────────────────────────────
 function drawStreaks(ctx, rng, cx, cy, base) {
-  const n = rng.int(4, 9);
+  const n = rng.int(6, 12);
   for (let i = 0; i < n; i++) {
-    const a = rng.range(0,Math.PI*2);
-    const startD = rng.range(base*0.28,base*0.50);
-    const len    = rng.range(base*0.05,base*0.20);
-    const sx = cx+Math.cos(a)*startD, sy = cy+Math.sin(a)*startD*0.9;
-    const ex = cx+Math.cos(a)*(startD+len), ey = cy+Math.sin(a)*(startD+len)*0.9;
-    const w = rng.range(0.3,0.9);
+    const a = rng.range(0, Math.PI*2);
+    const startD = rng.range(base*0.50, base*0.75);
+    const len    = rng.range(base*0.08, base*0.28);
+    const sx = cx+Math.cos(a)*startD, sy = cy+Math.sin(a)*startD*0.85;
+    const ex = cx+Math.cos(a)*(startD+len), ey = cy+Math.sin(a)*(startD+len)*0.85;
+    const w = rng.range(0.8, 2.2);
     ctx.save();
     const sg = ctx.createLinearGradient(sx,sy,ex,ey);
-    sg.addColorStop(0,`rgba(22,16,12,${rng.range(0.18,0.45)})`);
-    sg.addColorStop(1,'rgba(22,16,12,0)');
+    sg.addColorStop(0, `rgba(12,10,7,${rng.range(0.55,0.90)})`);
+    sg.addColorStop(1, 'rgba(12,10,7,0)');
     ctx.strokeStyle = sg;
-    ctx.lineWidth = w; ctx.lineCap = 'round';
+    ctx.lineWidth = w;
+    ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(sx,sy);
+    ctx.moveTo(sx, sy);
     ctx.quadraticCurveTo(
-      (sx+ex)/2+rng.range(-base*0.018,base*0.018),
-      (sy+ey)/2+rng.range(-base*0.018,base*0.018),
+      (sx+ex)/2 + rng.range(-base*0.025, base*0.025),
+      (sy+ey)/2 + rng.range(-base*0.025, base*0.025),
       ex, ey
     );
     ctx.stroke();
-    if (rng.next()<0.5) {
-      ctx.globalAlpha = rng.range(0.08,0.28);
-      ctx.fillStyle = '#16100d';
-      ctx.beginPath(); ctx.arc(ex,ey,w*rng.range(0.8,2.0),0,Math.PI*2); ctx.fill();
+    if (rng.next() < 0.6) {
+      ctx.globalAlpha = rng.range(0.5, 0.9);
+      ctx.fillStyle = '#0c0a07';
+      ctx.beginPath();
+      ctx.arc(ex, ey, w*rng.range(1.2, 2.8), 0, Math.PI*2);
+      ctx.fill();
     }
     ctx.restore();
   }
@@ -421,20 +424,20 @@ function drawStreaks(ctx, rng, cx, cy, base) {
 
 // ── Splatter ──────────────────────────────────────────────────────────────────
 function drawSplatter(ctx, rng, cx, cy, base) {
-  const total = rng.int(180, 300);
+  const total = rng.int(320, 500);
   for (let i = 0; i < total; i++) {
-    const a = rng.range(0,Math.PI*2);
-    const minD = base*0.38, maxD = base*1.12;
-    const d = minD+Math.pow(rng.next(),1.5)*(maxD-minD);
-    const x = cx+Math.cos(a)*d, y = cy+Math.sin(a)*d*0.84;
-    const r = Math.pow(rng.next(),2.0)*base*0.015+0.4;
-    const v = rng.int(55,115);
-    const alpha = rng.range(0.10,0.50)*(1-(d-minD)/(maxD-minD)*0.65);
+    const a = rng.range(0, Math.PI*2);
+    const minD = base*0.55, maxD = base*1.35;
+    const d = minD + Math.pow(rng.next(), 1.4) * (maxD - minD);
+    const x = cx + Math.cos(a)*d;
+    const y = cy + Math.sin(a)*d*0.80;
+    const r = Math.pow(rng.next(), 1.2) * base*0.028 + 1.8;
+    const alpha = rng.range(0.55, 1.0) * (1 - (d - minD)/(maxD - minD)*0.5);
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.fillStyle = `rgb(${v},${v-4},${v-9})`;
+    ctx.fillStyle = '#0c0a07';
     ctx.beginPath();
-    ctx.ellipse(x,y,r,r*rng.range(0.45,1.7),rng.range(0,Math.PI),0,Math.PI*2);
+    ctx.ellipse(x, y, r, r*rng.range(0.4, 1.8), rng.range(0, Math.PI), 0, Math.PI*2);
     ctx.fill();
     ctx.restore();
   }
@@ -443,37 +446,27 @@ function drawSplatter(ctx, rng, cx, cy, base) {
 // ── Symmetric ink dot clusters ────────────────────────────────────────────────
 // 2–4 cluster pairs, each mirrored around cx. Dots are dark ink, not gray splatter.
 function drawSymmetricDots(ctx, rng, cx, cy, base) {
-  const nClusters = rng.int(2, 4);
+  const nClusters = rng.int(3, 6);
   for (let c = 0; c < nClusters; c++) {
-    // Cluster center — offset from fold, random y position
-    const cox = rng.range(base*0.12, base*0.55);
-    const coy = rng.range(-base*0.30, base*0.30);
-    const nDots = rng.int(5, 14);
-
+    const cox = rng.range(base*0.08, base*0.62);
+    const coy = rng.range(-base*0.38, base*0.38);
+    const nDots = rng.int(8, 20);
     for (let d = 0; d < nDots; d++) {
-      // Spread dots in a loose organic cloud around cluster center
       const a   = rng.range(0, Math.PI*2);
-      const rad = Math.pow(rng.next(), 0.7) * base*0.055;
+      const rad = Math.pow(rng.next(), 0.6) * base*0.065;
       const dx  = Math.cos(a)*rad + rng.range(-2,2);
       const dy  = Math.sin(a)*rad + rng.range(-2,2);
-      const r   = Math.pow(rng.next(), 1.8) * base*0.018 + 0.8;
-      const alpha = rng.range(0.45, 0.92);
-
-      // Draw on both sides — same offset, mirrored
+      const r   = Math.pow(rng.next(), 1.5) * base*0.022 + 1.0;
+      const alpha = rng.range(0.65, 0.98);
       for (const side of [1, -1]) {
         ctx.save();
         ctx.globalAlpha = alpha;
-        ctx.fillStyle = '#131009';
+        ctx.fillStyle = '#0c0a07';
         ctx.beginPath();
         ctx.ellipse(
           cx + side*(cox+dx), cy + coy + dy,
           r, r*rng.range(0.5,1.5), rng.range(0,Math.PI), 0, Math.PI*2
         );
-        ctx.fill();
-        // Tiny shadow to seat dot on paper
-        ctx.globalAlpha = alpha*0.3;
-        ctx.shadowColor = '#0a0804';
-        ctx.shadowBlur = 2;
         ctx.fill();
         ctx.restore();
       }
@@ -504,8 +497,8 @@ function draw() {
   drawPaper(ctx, W, H, rng);
 
   const cx = W/2, cy = H/2;
-  const base = Math.min(W,H) * 0.46;
-  const pts = buildHalf(rng, base, rng.int(26, 36));
+  const base = Math.min(W,H) * rng.range(0.52, 0.62);
+  const pts = buildHalf(rng, base, rng.int(28, 40));
 
   // Drop shadow
   ctx.save();
