@@ -228,3 +228,331 @@ function drawMountains(W, horizon, pal, rng, layers) {
     ctx.beginPath();
     ctx.moveTo(ptX[0], ptY[0]);
     for (let i = 1; i < ptX.length - 1; i++) {
+      const mx = (ptX[i] + ptX[i + 1]) / 2;
+      const my = (ptY[i] + ptY[i + 1]) / 2;
+      ctx.quadraticCurveTo(ptX[i], ptY[i], mx, my);
+    }
+    ctx.lineTo(ptX[ptX.length - 1], ptY[ptY.length - 1]);
+    ctx.lineTo(W + 20, yBase + 10);
+    ctx.lineTo(-20, yBase + 10);
+    ctx.closePath();
+    ctx.fillStyle = rgb(mr, mg, mb);
+    ctx.fill();
+  }
+}
+
+function drawCity(W, horizon, pal, rng) {
+  if (currentScene !== 'city_grid' && rng.bool(0.8)) return;
+
+  const count = rng.int(10, 22);
+  const cw = W * rng.range(0.45, 0.88);
+  const cx = (W - cw) / 2 + rng.range(-W * 0.08, W * 0.08);
+  const maxH = horizon * rng.range(0.12, 0.30);
+  const [mr, mg, mb] = pal.mtn[0];
+
+  for (let i = 0; i < count; i++) {
+    const bx = cx + (i / count) * cw + rng.range(-cw / count * 0.2, 0);
+    const bw = (cw / count) * rng.range(0.5, 0.92);
+    const bh = maxH * rng.range(0.15, 1.0);
+    const by = horizon - bh;
+
+    ctx.fillStyle = rgb(mr, mg, mb);
+    ctx.fillRect(bx, by, bw, bh);
+
+    if (rng.bool(0.45)) {
+      const wc = rng.int(2, 4), wr = rng.int(2, 8);
+      const ww = bw / (wc * 2 + 1), wh = bh / (wr * 2 + 1);
+      for (let row = 0; row < wr; row++) {
+        for (let col = 0; col < wc; col++) {
+          if (rng.bool(0.28)) {
+            ctx.fillStyle = pal.accent;
+            ctx.globalAlpha = rng.range(0.12, 0.35);
+            ctx.fillRect(bx + ww * (col * 2 + 1), by + wh * (row * 2 + 1), ww, wh);
+            ctx.globalAlpha = 1;
+          }
+        }
+      }
+    }
+  }
+}
+
+function drawGrid(W, H, horizon, pal, rng) {
+  const fg = ctx.createLinearGradient(0, horizon, 0, H);
+  fg.addColorStop(0, pal.floorT);
+  fg.addColorStop(0.55, pal.floorT);
+  fg.addColorStop(1, pal.floorB);
+  ctx.fillStyle = fg;
+  ctx.fillRect(0, horizon, W, H - horizon);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, horizon, W, H - horizon);
+  ctx.clip();
+
+  const rows =
+    currentScene === 'dense_grid' ? rng.int(24, 36) :
+    currentScene === 'minimal_grid' ? rng.int(8, 12) :
+    rng.int(14, 22);
+
+  for (let r = 0; r <= rows; r++) {
+    const t = Math.pow(r / rows, currentScene === 'minimal_grid' ? 1.15 : 1.3);
+    const y = horizon + (H - horizon) * t;
+    ctx.strokeStyle = pal.grid;
+    ctx.lineWidth = 0.8 + t * 1.8;
+    ctx.globalAlpha = 0.18 + t * 0.38;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(W, y);
+    ctx.stroke();
+  }
+
+  const cols =
+    currentScene === 'dense_grid' ? rng.int(38, 54) :
+    currentScene === 'minimal_grid' ? rng.int(14, 20) :
+    rng.int(24, 40);
+
+  const vpX = currentScene === 'offcenter'
+    ? W * rng.range(0.35, 0.65)
+    : W * rng.range(0.46, 0.54);
+
+  const spreadBottom =
+    currentScene === 'minimal_grid' ? W * rng.range(1.8, 2.4) :
+    currentScene === 'dense_grid' ? W * rng.range(3.0, 4.2) :
+    W * rng.range(2.4, 3.2);
+
+  const spreadTop =
+    currentScene === 'minimal_grid' ? spreadBottom * rng.range(0.18, 0.28) :
+    spreadBottom * rng.range(0.10, 0.18);
+
+  for (let c = -cols; c <= cols * 2; c++) {
+    const frac = c / cols;
+    const centered = frac - 0.5;
+    const bottomX = vpX + centered * spreadBottom;
+    const topX = vpX + centered * spreadTop;
+    const distFromCenter = Math.min(1, Math.abs(centered) * 1.5);
+
+    ctx.strokeStyle = pal.grid;
+    ctx.lineWidth = 0.8;
+    ctx.globalAlpha =
+      currentScene === 'dense_grid'
+        ? 0.15 + distFromCenter * 0.20
+        : 0.10 + distFromCenter * 0.18;
+
+    ctx.beginPath();
+    ctx.moveTo(topX, horizon);
+    ctx.lineTo(bottomX, H);
+    ctx.stroke();
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function drawWaveLines(W, H, horizon, pal, rng) {
+  const count =
+    currentScene === 'minimal_grid' ? rng.int(2, 4) :
+    currentScene === 'dense_grid' ? rng.int(8, 14) :
+    currentScene === 'foggy' ? rng.int(2, 5) :
+    rng.int(4, 9);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, horizon, W, H - horizon);
+  ctx.clip();
+
+  for (let i = 0; i < count; i++) {
+    const t = Math.pow((i + 1) / (count + 1), 1.4);
+    const y = horizon + (H - horizon) * t;
+    const amp = rng.range(4, 16) * (1 - t * 0.45);
+    const freq = rng.range(1.4, 3.2);
+    const phase = rng.range(0, Math.PI * 2);
+    const segs = 80;
+
+    ctx.beginPath();
+    for (let s = 0; s <= segs; s++) {
+      const x = (s / segs) * W;
+      const wy = y
+        + Math.sin((s / segs) * Math.PI * 2 * freq + phase) * amp
+        + Math.sin((s / segs) * Math.PI * 2 * freq * 1.7 + phase * 1.3) * amp * 0.35;
+      s === 0 ? ctx.moveTo(x, wy) : ctx.lineTo(x, wy);
+    }
+
+    ctx.strokeStyle = pal.grid;
+    ctx.lineWidth = rng.range(0.45, 1.0);
+    ctx.globalAlpha =
+      currentScene === 'foggy'
+        ? rng.range(0.03, 0.08) * (0.25 + t * 0.4)
+        : rng.range(0.06, 0.16) * (0.35 + t * 0.7);
+    ctx.stroke();
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function drawReflection(W, H, horizon, sun, pal, rng) {
+  if (!rng.bool(currentScene === 'huge_sun' ? 0.7 : 0.5)) return;
+
+  const rw = sun.r * rng.range(0.9, 1.8);
+  const rh = (H - horizon) * rng.range(0.28, 0.46);
+  const rg = ctx.createLinearGradient(sun.cx, horizon, sun.cx, horizon + rh);
+  rg.addColorStop(0, pal.reflA);
+  rg.addColorStop(0.4, pal.reflB);
+  rg.addColorStop(1, pal.reflB);
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  ctx.fillStyle = rg;
+  ctx.beginPath();
+  ctx.moveTo(sun.cx - rw, horizon);
+  ctx.lineTo(sun.cx + rw, horizon);
+  ctx.lineTo(sun.cx + rw * 0.09, horizon + rh);
+  ctx.lineTo(sun.cx - rw * 0.09, horizon + rh);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawScanlines(W, H, pal) {
+  if (currentScene === 'minimal_grid') return;
+  ctx.save();
+  ctx.fillStyle = pal.scanA;
+  for (let y = 0; y < H; y += 3) ctx.fillRect(0, y, W, 1);
+  ctx.restore();
+}
+
+function applyInverse(ctx, W, H) {
+  const img = ctx.getImageData(0, 0, W, H);
+  const data = img.data;
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = 255 - data[i];
+    data[i + 1] = 255 - data[i + 1];
+    data[i + 2] = 255 - data[i + 2];
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function applyEinkDither(ctx, W, H, horizon, scene, isInverse) {
+  const img = ctx.getImageData(0, 0, W, H);
+  const data = img.data;
+
+  const bayer4 = [
+    [0, 8, 2, 10],
+    [12, 4, 14, 6],
+    [3, 11, 1, 9],
+    [15, 7, 13, 5]
+  ];
+
+  const levels = isInverse ? [0, 80, 168, 255] : [0, 92, 176, 255];
+
+  function nearestLevel(v) {
+    let best = levels[0];
+    let bestDist = Math.abs(v - best);
+    for (let i = 1; i < levels.length; i++) {
+      const d = Math.abs(v - levels[i]);
+      if (d < bestDist) {
+        best = levels[i];
+        bestDist = d;
+      }
+    }
+    return best;
+  }
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+
+      let gray = 0.299 * r + 0.587 * g + 0.114 * b;
+
+      gray = ((gray - 128) * (scene === 'foggy' ? 1.05 : 1.18)) + 128;
+
+      if (gray > 238) gray = 255;
+      else if (gray < 28) gray = 0;
+
+      gray = Math.max(0, Math.min(255, gray));
+
+      const midness = 1 - Math.abs(gray - 128) / 128;
+
+      let strength =
+        scene === 'foggy' ? 18 :
+        scene === 'dense_grid' ? 40 :
+        scene === 'minimal_grid' ? 22 :
+        30;
+
+      if (y >= horizon) strength *= 1.15;
+      if (isInverse) strength *= 0.90;
+
+      const threshold = ((bayer4[y % 4][x % 4] / 16) - 0.5) * strength * midness;
+
+      const adjusted = Math.max(0, Math.min(255, gray + threshold));
+      const q = nearestLevel(adjusted);
+
+      data[i] = q;
+      data[i + 1] = q;
+      data[i + 2] = q;
+      data[i + 3] = 255;
+    }
+  }
+
+  ctx.putImageData(img, 0, 0);
+}
+
+function chooseHorizon(H, rng, scene) {
+  switch (scene) {
+    case 'low_sun':      return H * rng.range(0.55, 0.65);
+    case 'high_sun':     return H * rng.range(0.30, 0.40);
+    case 'wide_open':    return H * rng.range(0.45, 0.50);
+    case 'foggy':        return H * rng.range(0.48, 0.54);
+    case 'minimal_grid': return H * rng.range(0.42, 0.48);
+    default:             return H * rng.range(0.40, 0.54);
+  }
+}
+
+function render(seed) {
+  const W = canvas.width = window.innerWidth;
+  const H = canvas.height = window.innerHeight;
+
+  const rng = makeRng(seed);
+  const pal = rng.pick(PALETTES);
+  const scene = rng.pick(SCENES);
+  const inverse = rng.bool(0.28);
+
+  currentScene = scene;
+  currentInverse = inverse;
+
+  const horizon = chooseHorizon(H, rng, scene);
+
+  drawSky(W, H, pal, rng, horizon);
+  drawStars(W, horizon, pal, rng);
+  const sun = drawSun(W, horizon, pal, rng);
+
+  drawMountains(W, horizon, pal, rng, rng.int(2, 4));
+  drawCity(W, horizon, pal, rng);
+  drawGrid(W, H, horizon, pal, rng);
+  drawReflection(W, H, horizon, sun, pal, rng);
+  drawWaveLines(W, H, horizon, pal, rng);
+  drawScanlines(W, H, pal);
+
+  if (inverse) {
+    applyInverse(ctx, W, H);
+  }
+
+  applyEinkDither(ctx, W, H, horizon, scene, inverse);
+}
+
+let seed = Math.floor(Math.random() * 0xffffff);
+render(seed);
+
+canvas.addEventListener('click', () => {
+  seed = Math.floor(Math.random() * 0xffffff);
+  render(seed);
+});
+
+window.addEventListener('resize', () => render(seed));
+</script>
+</body>
+</html>
