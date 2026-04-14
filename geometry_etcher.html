@@ -8,29 +8,16 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
 canvas { display: block; width: 100vw; height: 100vh; cursor: pointer; }
-#info {
-  position: fixed; bottom: 12px; left: 14px;
-  font-family: monospace; font-size: 10px;
-  color: rgba(255,255,255,0.3);
-  letter-spacing: 0.06em;
-  pointer-events: none;
-}
-#hint {
-  position: fixed; bottom: 12px; right: 14px;
-  font-family: monospace; font-size: 10px;
-  color: rgba(255,255,255,0.18);
-  pointer-events: none;
-}
+
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="info">–</div>
-<div id="hint">click to regenerate</div>
+
 <script>
 const canvas = document.getElementById('c');
 const ctx    = canvas.getContext('2d');
-const info   = document.getElementById('info');
+
 
 // ── RNG ──────────────────────────────────────────────────────────────────────
 function makeRng(seed) {
@@ -437,7 +424,7 @@ function render(seed) {
     drawLayer(layer.pts, cx, cy, sc, rot, palette, alpha, lw);
   });
 
-  info.textContent = `${scene.label}  ·  ${palette.label}  ·  ${layers.length} layers`;
+
 }
 
 let currentSeed = Math.floor(Math.random()*0xffffff);
