@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Inky Blobs</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+iframe { display: block; width: 100%; height: 100%; border: none; }
+</style>
+</head>
+<body>
+<script>
+const ENGINES = {
+  rorschach: 'index.html',
+  fractal:   'mandelbrot_eink.html',
+  geometry:  'geometry_etcher.html',
+};
+
+function pick() {
+  const params = new URLSearchParams(window.location.search);
+  const raw    = params.get('modes') || 'rorschach,fractal,geometry';
+  const modes  = raw.split(',').map(m => m.trim()).filter(m => ENGINES[m]);
+  if (!modes.length) modes.push('rorschach');
+
+  // Seed from minute so it stays stable within a refresh cycle
+  // but changes each new TRMNL poll
+  const seed = Math.floor(Date.now() / 60000);
+  let s = (seed ^ 0x9e3779b9) >>> 0;
+  s = (Math.imul(1664525, s) + 1013904223) >>> 0;
+  const idx = s % modes.length;
+
+  const chosen = ENGINES[modes[idx]];
+  const iframe = document.createElement('iframe');
+  iframe.src = chosen;
+  iframe.setAttribute('scrolling', 'no');
+  iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+  document.body.appendChild(iframe);
+}
+
+pick();
+</script>
+</body>
+</html>

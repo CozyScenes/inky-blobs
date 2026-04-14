@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Geometry Etcher</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+canvas { display: block; width: 100vw; height: 100vh; cursor: pointer; }
+#info {
+  position: fixed; bottom: 12px; left: 14px;
+  font-family: monospace; font-size: 10px;
+  color: rgba(255,255,255,0.3);
+  letter-spacing: 0.06em;
+  pointer-events: none;
+}
+#hint {
+  position: fixed; bottom: 12px; right: 14px;
+  font-family: monospace; font-size: 10px;
+  color: rgba(255,255,255,0.18);
+  pointer-events: none;
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="info">–</div>
+<div id="hint">click to regenerate</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+const info   = document.getElementById('info');
+
+// ── RNG ──────────────────────────────────────────────────────────────────────
+function makeRng(seed) {
+  let s = (seed ^ 0x9e3779b9) >>> 0;
+  return {
+    next()      { s=(Math.imul(1664525,s)+1013904223)>>>0; return s/4294967295; },
+    range(a,b)  { return a+this.next()*(b-a); },
+    pick(arr)   { return arr[Math.floor(this.next()*arr.length)]; },
+    int(a,b)    { return Math.floor(a+this.next()*(b-a+1)); },
+    bool(p)     { return this.next() < (p||0.5); }
+  };
+}
+
+function gcd(a,b){a=Math.round(Math.abs(a));b=Math.round(Math.abs(b));while(b){let t=b;b=a%b;a=t;}return a||1;}
+
+// ── PALETTES ─────────────────────────────────────────────────────────────────
+const PALETTES = [
+  {
+    label:'ink on paper',
+    bg:'#f0ede4', inside:'#f0ede4',
+    line:(t)=>{const v=Math.pow(t,0.5); return `rgba(18,14,8,${0.12+v*0.82})`; },
+    lineW:(base)=>base
+  },
+  {
+    label:'white ink',
+    bg:'#080808', inside:'#080808',
+    line:(t)=>{const v=Math.pow(t,0.45); return `rgba(240,236,222,${0.08+v*0.86})`; },
+    lineW:(base)=>base
+  },
+  {
+    label:'graphite',
+    bg:'#e8e4da', inside:'#e8e4da',
+    line:(t)=>{
+      const steps=14; const v=Math.floor(Math.pow(t,0.55)*steps)/steps;
+      const c=Math.round(255-v*230); return `rgb(${c},${c},${c})`;
+    },
+    lineW:(base)=>base*0.9
+  },
+  {
+    label:'blueprint',
+    bg:'#08152a', inside:'#08152a',
+    line:(t)=>{const v=Math.pow(t,0.48); return `rgba(140,200,255,${0.06+v*0.88})`; },
+    lineW:(base)=>base
+  },
+  {
+    label:'sepia etching',
+    bg:'#f2e8d2', inside:'#f2e8d2',
+    line:(t)=>{const v=Math.pow(t,0.5); return `rgba(62,28,8,${0.08+v*0.85})`; },
+    lineW:(base)=>base
+  },
+  {
+    label:'amber glow',
+    bg:'#060400', inside:'#060400',
+    line:(t)=>{const v=Math.pow(t,0.45); return `rgba(255,172,30,${0.05+v*0.88})`; },
+    lineW:(base)=>base
+  },
+  {
+    label:'4-bit e-ink',
+    bg:'#ece8df', inside:'#ece8df',
+    line:(t)=>{
+      const lv=[0,18,36,54,72,90,110,130,150,170,190,210,228];
+      const idx=Math.min(12,Math.floor(Math.pow(t,0.5)*13));
+      const c=lv[idx]; return `rgb(${c},${c},${c})`;
+    },
+    lineW:(base)=>base*1.1
+  },
+  {
+    label:'teal',
+    bg:'#030e0c', inside:'#030e0c',
+    line:(t)=>{const v=Math.pow(t,0.45); return `rgba(60,220,185,${0.05+v*0.88})`; },
+    lineW:(base)=>base
+  },
+];
+
+// ── CURVE GENERATORS ─────────────────────────────────────────────────────────
+// Each returns array of [x,y] in local space (0,0 = centre), unit scale ~1
+
+function lissajous(a,b,delta,steps){
+  const pts=[];
+  for(let i=0;i<=steps;i++){
+    const t=(i/steps)*2*Math.PI;
+    pts.push([Math.sin(a*t+delta), Math.sin(b*t)]);
+  }
+  return pts;
+}
+
+function roseCurve(n,d,steps){
+  const k=n/d;
+  const laps=d%2===0?2*d:d;
+  const pts=[];
+  for(let i=0;i<=steps;i++){
+    const t=(i/steps)*Math.PI*laps;
+    const r=Math.cos(k*t);
+    pts.push([r*Math.cos(t), r*Math.sin(t)]);
+  }
+  return pts;
+}
+
+function spirograph(R,r,d,steps){
+  const laps=r/gcd(R,r);
+  const pts=[];
+  for(let i=0;i<=steps;i++){
+    const t=(i/steps)*2*Math.PI*laps;
+    const x=(R-r)*Math.cos(t)+d*Math.cos((R-r)/r*t);
+    const y=(R-r)*Math.sin(t)-d*Math.sin((R-r)/r*t);
+    pts.push([x/(R+d),y/(R+d)]);
+  }
+  return pts;
+}
+
+function epitrochoid(R,r,d,steps){
+  const laps=r/gcd(Math.round(R),Math.round(r));
+  const pts=[];
+  for(let i=0;i<=steps;i++){
+    const t=(i/steps)*2*Math.PI*laps;
+    const x=(R+r)*Math.cos(t)-d*Math.cos((R+r)/r*t);
+    const y=(R+r)*Math.sin(t)-d*Math.sin((R+r)/r*t);
+    pts.push([x/(R+r+d),y/(R+r+d)]);
+  }
+  return pts;
+}
+
+function superellipse(n,a,b,steps){
+  const pts=[];
+  for(let i=0;i<=steps;i++){
+    const t=(i/steps)*2*Math.PI;
+    const ct=Math.cos(t),st=Math.sin(t);
+    pts.push([Math.sign(ct)*Math.pow(Math.abs(ct),2/n)*a, Math.sign(st)*Math.pow(Math.abs(st),2/n)*b]);
+  }
+  return pts;
+}
+
+function limacon(a,b,steps){
+  const pts=[];
+  for(let i=0;i<=steps;i++){
+    const t=(i/steps)*2*Math.PI;
+    const r=a+b*Math.cos(t);
+    pts.push([r*Math.cos(t)/(Math.abs(a)+Math.abs(b)), r*Math.sin(t)/(Math.abs(a)+Math.abs(b))]);
+  }
+  return pts;
+}
+
+function foliumDescartes(a,steps){
+  const pts=[];
+  for(let i=1;i<steps-1;i++){
+    const t=-3.5+(i/steps)*7.5;
+    const denom=1+t*t*t;
+    if(Math.abs(denom)<0.01) continue;
+    const x=3*a*t/denom, y=3*a*t*t/denom;
+    pts.push([x/(3*a),y/(3*a)]);
+  }
+  return pts;
+}
+
+function butterfly(steps){
+  const pts=[];
+  for(let i=0;i<=steps;i++){
+    const t=(i/steps)*24*Math.PI;
+    const r=Math.exp(Math.cos(t))-2*Math.cos(4*t)-Math.pow(Math.sin(t/12),5);
+    pts.push([r*Math.sin(t)/4, -r*Math.cos(t)/4]);
+  }
+  return pts;
+}
+
+function lemniscate(a,steps){
+  const pts=[];
+  for(let i=0;i<=steps;i++){
+    const t=(i/steps)*2*Math.PI;
+    const cos2=Math.cos(2*t);
+    if(cos2<0) continue;
+    const r=a*Math.sqrt(cos2);
+    pts.push([r*Math.cos(t),r*Math.sin(t)]);
+  }
+  return pts;
+}
+
+function rhodonea(k,steps){
+  const pts=[];
+  const laps=(k%2===0)?2:1;
+  for(let i=0;i<=steps;i++){
+    const t=(i/steps)*Math.PI*laps;
+    const r=Math.sin(k*t);
+    pts.push([r*Math.cos(t),r*Math.sin(t)]);
+  }
+  return pts;
+}
+
+function cornuSpiral(steps){
+  const pts=[];
+  for(let i=0;i<=steps;i++){
+    const t=-4+(i/steps)*8;
+    let x=0,y=0;
+    const n=200;
+    for(let j=0;j<n;j++){
+      const s=t*j/n;
+      x+=Math.cos(Math.PI*s*s/2)*(t/n);
+      y+=Math.sin(Math.PI*s*s/2)*(t/n);
+    }
+    pts.push([x/3,y/3]);
+  }
+  return pts;
+}
+
+// ── SCENES ───────────────────────────────────────────────────────────────────
+// A scene = one or more layers, each a curve with its own transform + weight
+
+const SCENES = [
+  {
+    label:'lissajous 3:4',
+    build:(rng)=>[
+      {pts:lissajous(3,4,Math.PI/2,8000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:lissajous(3,4,Math.PI/2+0.15,6000), weight:0.45, rot:rng.range(0,Math.PI*2)},
+    ]
+  },
+  {
+    label:'lissajous 5:6',
+    build:(rng)=>[
+      {pts:lissajous(5,6,Math.PI/4,10000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:lissajous(5,6,Math.PI/4+0.3,7000), weight:0.35, rot:rng.range(0,Math.PI*2)},
+    ]
+  },
+  {
+    label:'lissajous 7:8 mesh',
+    build:(rng)=>[
+      {pts:lissajous(7,8,rng.range(0,Math.PI),14000), weight:1.0, rot:0},
+      {pts:lissajous(7,8,rng.range(0,Math.PI),10000), weight:0.5, rot:Math.PI/7},
+    ]
+  },
+  {
+    label:'rose 7/3',
+    build:(rng)=>[
+      {pts:roseCurve(7,3,16000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:roseCurve(7,3,12000), weight:0.4, rot:rng.range(0,Math.PI*2), scale:0.72},
+      {pts:roseCurve(7,3,8000),  weight:0.2, rot:rng.range(0,Math.PI*2), scale:0.44},
+    ]
+  },
+  {
+    label:'rose 11/4',
+    build:(rng)=>[
+      {pts:roseCurve(11,4,20000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:roseCurve(11,4,14000), weight:0.45, rot:rng.range(0,Math.PI*2), scale:0.65},
+    ]
+  },
+  {
+    label:'spirograph star',
+    build:(rng)=>[
+      {pts:spirograph(170,113,80,20000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:spirograph(170,113,40,12000), weight:0.5, rot:rng.range(0,Math.PI*2)},
+      {pts:spirograph(130,80,60,10000),  weight:0.3, rot:rng.range(0,Math.PI*2), scale:0.6},
+    ]
+  },
+  {
+    label:'spirograph classic',
+    build:(rng)=>[
+      {pts:spirograph(160,60,80,18000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:spirograph(160,60,120,14000),weight:0.5, rot:rng.range(0,Math.PI*2)},
+    ]
+  },
+  {
+    label:'spirograph dense',
+    build:(rng)=>[
+      {pts:spirograph(180,77,100,22000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:spirograph(180,77,50,14000),  weight:0.4, rot:rng.range(0,Math.PI*2), scale:0.8},
+      {pts:spirograph(150,40,140,12000), weight:0.3, rot:rng.range(0,Math.PI*2), scale:0.55},
+    ]
+  },
+  {
+    label:'epitrochoid',
+    build:(rng)=>[
+      {pts:epitrochoid(5,3,5,20000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:epitrochoid(5,3,3,14000), weight:0.45, rot:rng.range(0,Math.PI*2), scale:0.7},
+    ]
+  },
+  {
+    label:'butterfly',
+    build:(rng)=>[
+      {pts:butterfly(16000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:butterfly(10000), weight:0.4, rot:rng.range(0,Math.PI*2), scale:0.6},
+    ]
+  },
+  {
+    label:'rhodonea',
+    build:(rng)=>[
+      {pts:rhodonea(rng.pick([3,5,7,9]),16000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:rhodonea(rng.pick([4,6,8]),12000),   weight:0.4, rot:rng.range(0,Math.PI*2), scale:0.7},
+    ]
+  },
+  {
+    label:'superellipse stack',
+    build:(rng)=>{
+      const n=rng.range(0.4,5); const layers=[];
+      for(let i=0;i<6;i++){
+        const sc=1-(i*0.12);
+        layers.push({pts:superellipse(n*(1+i*0.08),1,1,3000), weight:1-i*0.14, rot:i*rng.range(0.04,0.18), scale:sc});
+      }
+      return layers;
+    }
+  },
+  {
+    label:'lemniscate',
+    build:(rng)=>[
+      {pts:lemniscate(1,12000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:lemniscate(1,9000),  weight:0.5, rot:rng.range(0,Math.PI*2), scale:0.72},
+      {pts:lemniscate(1,7000),  weight:0.3, rot:rng.range(0,Math.PI*2), scale:0.5},
+    ]
+  },
+  {
+    label:'limacon nest',
+    build:(rng)=>{
+      const a=rng.range(1.2,2.5), b=rng.range(0.8,2.8);
+      const layers=[];
+      for(let i=0;i<5;i++){
+        layers.push({pts:limacon(a,b*(1-i*0.12),6000), weight:1-i*0.16, rot:i*rng.range(0.05,0.2), scale:1-i*0.1});
+      }
+      return layers;
+    }
+  },
+  {
+    label:'rose trifoil rings',
+    build:(rng)=>[
+      {pts:roseCurve(3,1,10000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:roseCurve(3,1,8000),  weight:0.6, rot:rng.range(0,Math.PI*2), scale:0.72},
+      {pts:roseCurve(3,1,6000),  weight:0.35,rot:rng.range(0,Math.PI*2), scale:0.48},
+      {pts:superellipse(2,1,1,2000), weight:0.12, rot:0, scale:0.3},
+    ]
+  },
+  {
+    label:'spirograph heptagram',
+    build:(rng)=>[
+      {pts:spirograph(7*20,3*20,7*20,24000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:spirograph(7*20,3*20,4*20,16000), weight:0.45,rot:rng.range(0,Math.PI*2)},
+    ]
+  },
+  {
+    label:'layered lissajous',
+    build:(rng)=>{
+      const pairs=[[3,4],[5,6],[7,8],[4,5]];
+      const layers=[];
+      pairs.forEach((p,i)=>{
+        const delta=rng.range(0,Math.PI*2);
+        layers.push({pts:lissajous(p[0],p[1],delta,8000), weight:1/(i+1), rot:rng.range(0,Math.PI*2), scale:1});
+      });
+      return layers;
+    }
+  },
+  {
+    label:'rose + spirograph',
+    build:(rng)=>[
+      {pts:roseCurve(5,2,14000),       weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:spirograph(150,60,90,14000),weight:0.5, rot:rng.range(0,Math.PI*2), scale:0.88},
+    ]
+  },
+  {
+    label:'concentric superellipses',
+    build:(rng)=>{
+      const n=rng.range(0.35,6);
+      const layers=[];
+      for(let i=0;i<12;i++){
+        const sc=0.98-i*0.07;
+        layers.push({pts:superellipse(n,1,rng.range(0.7,1.0),2000), weight:0.9, rot:i*rng.range(0.02,0.12), scale:sc});
+      }
+      return layers;
+    }
+  },
+];
+
+// ── DRAW ─────────────────────────────────────────────────────────────────────
+function drawLayer(pts, cx, cy, scale, rot, palette, baseWeight, baseWidth) {
+  if(pts.length<2) return;
+
+  ctx.save();
+  ctx.translate(cx,cy);
+  ctx.rotate(rot);
+  ctx.lineWidth  = baseWidth;
+  ctx.lineCap    = 'round';
+  ctx.lineJoin   = 'round';
+
+  for(let i=1;i<pts.length;i++){
+    const t = i/pts.length;
+    const [x0,y0] = pts[i-1];
+    const [x1,y1] = pts[i];
+    const alpha = baseWeight;
+    ctx.strokeStyle = palette.line(t);
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    ctx.moveTo(x0*scale, y0*scale);
+    ctx.lineTo(x1*scale, y1*scale);
+    ctx.stroke();
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+// ── RENDER ───────────────────────────────────────────────────────────────────
+function render(seed) {
+  const W = canvas.width  = window.innerWidth;
+  const H = canvas.height = window.innerHeight;
+  const rng = makeRng(seed);
+
+  const scene   = rng.pick(SCENES);
+  const palette = rng.pick(PALETTES);
+  const layers  = scene.build(rng);
+
+  const cx = W * rng.range(0.38, 0.62);
+  const cy = H * rng.range(0.38, 0.62);
+  const baseScale = Math.min(W,H) * rng.range(0.36, 0.47);
+  const baseWidth = rng.range(0.9, 2.2) * palette.lineW(1);
+
+  ctx.fillStyle = palette.bg;
+  ctx.fillRect(0,0,W,H);
+
+  layers.forEach(layer => {
+    const sc    = baseScale * (layer.scale || 1.0);
+    const rot   = layer.rot  || 0;
+    const alpha = layer.weight;
+    const lw    = baseWidth * (0.6 + alpha * 0.7);
+    drawLayer(layer.pts, cx, cy, sc, rot, palette, alpha, lw);
+  });
+
+  info.textContent = `${scene.label}  ·  ${palette.label}  ·  ${layers.length} layers`;
+}
+
+let currentSeed = Math.floor(Math.random()*0xffffff);
+render(currentSeed);
+
+canvas.addEventListener('click', () => {
+  currentSeed = Math.floor(Math.random()*0xffffff);
+  render(currentSeed);
+});
+
+window.addEventListener('resize', () => render(currentSeed));
+</script>
+</body>
+</html>
