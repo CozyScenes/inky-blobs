@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Vaporwave</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+canvas { display: block; width: 100vw; height: 100vh; cursor: pointer; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+function makeRng(seed) {
+  let s = (seed ^ 0x9e3779b9) >>> 0;
+  return {
+    next()     { s=(Math.imul(1664525,s)+1013904223)>>>0; return s/4294967295; },
+    range(a,b) { return a+this.next()*(b-a); },
+    int(a,b)   { return Math.floor(a+this.next()*(b-a+1)); },
+    pick(arr)  { return arr[Math.floor(this.next()*arr.length)]; },
+    bool(p)    { return this.next()<(p||0.5); }
+  };
+}
+
+function rgba(r,g,b,a){ return `rgba(${r},${g},${b},${a})`; }
+function rgb(r,g,b)   { return `rgb(${r},${g},${b})`; }
+
+const PALETTES = [
+  {
+    name:'classic',
+    skyT:rgba(8,2,22,1), skyM:rgba(26,5,51,1), skyB:rgba(45,11,92,1),
+    sunA:rgba(255,0,128,1), sunB:rgba(255,180,70,1), sunC:rgba(200,0,80,1),
+    sunGlow:rgba(255,0,128,0.12),
+    grid:rgba(255,0,255,1), gridA:rgba(255,0,255,0.7), gridF:rgba(255,0,255,0),
+    floorT:rgba(45,11,92,1), floorB:rgba(8,2,22,1),
+    mtn:[[8,0,40],[22,0,70],[60,0,130]],
+    scanA:rgba(255,0,128,0.10),
+    star:rgba(255,220,255,1), accent:rgba(0,255,255,1),
+    sunLine:rgba(8,2,22,0.75),
+    reflA:rgba(255,100,200,0.38), reflB:rgba(255,0,128,0),
+  },
+  {
+    name:'teal dream',
+    skyT:rgba(0,10,30,1), skyM:rgba(0,30,60,1), skyB:rgba(0,55,80,1),
+    sunA:rgba(0,255,200,1), sunB:rgba(0,220,255,1), sunC:rgba(0,180,220,1),
+    sunGlow:rgba(0,255,200,0.10),
+    grid:rgba(0,255,180,1), gridA:rgba(0,255,180,0.7), gridF:rgba(0,255,180,0),
+    floorT:rgba(0,55,80,1), floorB:rgba(0,10,30,1),
+    mtn:[[0,15,40],[0,28,55],[0,45,70]],
+    scanA:rgba(0,255,200,0.10),
+    star:rgba(180,255,240,1), accent:rgba(255,100,0,1),
+    sunLine:rgba(0,10,30,0.75),
+    reflA:rgba(0,255,200,0.35), reflB:rgba(0,255,200,0),
+  },
+  {
+    name:'sunset',
+    skyT:rgba(15,5,0,1), skyM:rgba(60,18,0,1), skyB:rgba(130,35,0,1),
+    sunA:rgba(255,220,0,1), sunB:rgba(255,130,0,1), sunC:rgba(255,50,0,1),
+    sunGlow:rgba(255,150,0,0.12),
+    grid:rgba(255,90,0,1), gridA:rgba(255,90,0,0.7), gridF:rgba(255,90,0,0),
+    floorT:rgba(80,20,0,1), floorB:rgba(15,5,0,1),
+    mtn:[[30,8,0],[55,15,0],[90,25,0]],
+    scanA:rgba(255,90,0,0.10),
+    star:rgba(255,240,160,1), accent:rgba(255,0,150,1),
+    sunLine:rgba(15,5,0,0.75),
+    reflA:rgba(255,200,0,0.35), reflB:rgba(255,130,0,0),
+  },
+  {
+    name:'purple haze',
+    skyT:rgba(5,0,18,1), skyM:rgba(18,0,40,1), skyB:rgba(40,0,80,1),
+    sunA:rgba(200,80,255,1), sunB:rgba(255,160,255,1), sunC:rgba(150,0,255,1),
+    sunGlow:rgba(200,0,255,0.12),
+    grid:rgba(180,0,255,1), gridA:rgba(180,0,255,0.7), gridF:rgba(180,0,255,0),
+    floorT:rgba(40,0,80,1), floorB:rgba(5,0,18,1),
+    mtn:[[18,0,40],[38,0,80],[65,0,130]],
+    scanA:rgba(180,0,255,0.10),
+    star:rgba(220,180,255,1), accent:rgba(0,255,160,1),
+    sunLine:rgba(5,0,18,0.75),
+    reflA:rgba(200,80,255,0.35), reflB:rgba(180,0,255,0),
+  },
+  {
+    name:'miami',
+    skyT:rgba(0,0,18,1), skyM:rgba(0,10,40,1), skyB:rgba(0,20,65,1),
+    sunA:rgba(255,20,140,1), sunB:rgba(255,100,180,1), sunC:rgba(220,0,100,1),
+    sunGlow:rgba(255,20,140,0.12),
+    grid:rgba(0,190,255,1), gridA:rgba(0,190,255,0.7), gridF:rgba(0,190,255,0),
+    floorT:rgba(0,20,65,1), floorB:rgba(0,0,18,1),
+    mtn:[[0,8,28],[0,16,42],[0,25,58]],
+    scanA:rgba(0,190,255,0.10),
+    star:rgba(200,240,255,1), accent:rgba(255,20,140,1),
+    sunLine:rgba(0,0,18,0.75),
+    reflA:rgba(255,20,140,0.35), reflB:rgba(0,190,255,0),
+  },
+  {
+    name:'eink paper',
+    skyT:rgba(240,238,230,1), skyM:rgba(200,195,182,1), skyB:rgba(150,144,130,1),
+    sunA:rgba(255,255,255,1), sunB:rgba(220,215,200,1), sunC:rgba(180,175,160,1),
+    sunGlow:rgba(0,0,0,0.05),
+    grid:rgba(20,18,12,1), gridA:rgba(20,18,12,0.8), gridF:rgba(20,18,12,0),
+    floorT:rgba(80,78,70,1), floorB:rgba(20,18,12,1),
+    mtn:[[30,28,22],[55,52,44],[90,86,76]],
+    scanA:rgba(0,0,0,0.07),
+    star:rgba(255,255,255,1), accent:rgba(20,18,12,1),
+    sunLine:rgba(240,238,230,0.85),
+    reflA:rgba(255,255,255,0.28), reflB:rgba(255,255,255,0),
+  },
+  {
+    name:'eink ink',
+    skyT:rgba(8,8,6,1), skyM:rgba(22,20,16,1), skyB:rgba(45,42,36,1),
+    sunA:rgba(240,235,220,1), sunB:rgba(200,194,178,1), sunC:rgba(160,154,138,1),
+    sunGlow:rgba(240,235,220,0.08),
+    grid:rgba(200,195,180,1), gridA:rgba(200,195,180,0.7), gridF:rgba(200,195,180,0),
+    floorT:rgba(40,38,32,1), floorB:rgba(8,8,6,1),
+    mtn:[[12,11,8],[25,23,18],[45,42,35]],
+    scanA:rgba(200,195,180,0.07),
+    star:rgba(240,235,220,1), accent:rgba(200,195,180,1),
+    sunLine:rgba(8,8,6,0.80),
+    reflA:rgba(240,235,220,0.28), reflB:rgba(240,235,220,0),
+  },
+];
+
+function drawSky(W, H, pal, rng) {
+  const horizon = H * rng.range(0.40, 0.54);
+  const g = ctx.createLinearGradient(0, 0, 0, horizon);
+  g.addColorStop(0,   pal.skyT);
+  g.addColorStop(0.5, pal.skyM);
+  g.addColorStop(1,   pal.skyB);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, horizon + 2);
+  return horizon;
+}
+
+function drawStars(W, horizon, pal, rng) {
+  const n = rng.int(60, 200);
+  for (let i = 0; i < n; i++) {
+    const x = rng.range(0, W), y = rng.range(0, horizon*0.88);
+    ctx.save();
+    ctx.globalAlpha = rng.range(0.5, 1.0);
+    ctx.fillStyle = pal.star;
+    ctx.beginPath(); ctx.arc(x, y, rng.range(0.5, 2.0), 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+  if (rng.bool(0.4)) {
+    const sx=rng.range(W*0.1,W*0.9), sy=rng.range(0,horizon*0.3);
+    const len=rng.range(30,90), ang=rng.range(-0.4,-0.1);
+    const sg=ctx.createLinearGradient(sx,sy,sx+len*Math.cos(ang),sy+len*Math.sin(ang));
+    sg.addColorStop(0,pal.star); sg.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.save(); ctx.strokeStyle=sg; ctx.lineWidth=1.2; ctx.globalAlpha=0.8;
+    ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(sx+len*Math.cos(ang),sy+len*Math.sin(ang)); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawSun(W, horizon, pal, rng) {
+  const cx = W * rng.range(0.30, 0.70);
+  const r  = Math.min(W, horizon) * rng.range(0.16, 0.28);
+  // Always keep full circle above horizon — minimum clearance = r + 8px
+  const cy = horizon - r - rng.range(r*0.1, horizon*0.55);
+
+  for (let i = 3; i >= 0; i--) {
+    const gr = ctx.createRadialGradient(cx, cy, r*0.8, cx, cy, r*(2.0+i*0.4));
+    gr.addColorStop(0, pal.sunGlow);
+    gr.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gr;
+    ctx.beginPath(); ctx.arc(cx, cy, r*(2.0+i*0.4), 0, Math.PI*2); ctx.fill();
+  }
+
+  const sg = ctx.createLinearGradient(cx, cy-r, cx, cy+r);
+  sg.addColorStop(0, pal.sunA); sg.addColorStop(0.5, pal.sunB); sg.addColorStop(1, pal.sunC);
+  ctx.fillStyle = sg;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, r-0.5, 0, Math.PI*2); ctx.clip();
+  const lCount = rng.int(8, 20);
+  const lStep  = r / lCount;
+  for (let i = 0; i < lCount; i++) {
+    const ly = cy + i * lStep;
+    ctx.globalAlpha = rng.range(0.5, 0.85);
+    ctx.fillStyle = pal.sunLine;
+    ctx.fillRect(cx-r, ly, r*2, lStep*rng.range(0.25,0.45));
+  }
+  ctx.restore();
+
+  return {cx, cy, r};
+}
+
+function drawMountains(W, horizon, pal, rng, layers) {
+  for (let l = layers-1; l >= 0; l--) {
+    const [mr,mg,mb] = pal.mtn[Math.min(l, pal.mtn.length-1)];
+    const yBase  = horizon + 4;
+    const maxH   = horizon * rng.range(0.28, 0.52) * (1 - l*0.10);
+    // Build an organic ridgeline across the full width
+    // Many control points — not regular triangles
+    const nPts = rng.int(18, 32);
+    const ptX = [], ptY = [];
+
+    // Start and end below horizon
+    ptX.push(-20); ptY.push(yBase + 10);
+
+    for (let i = 1; i <= nPts; i++) {
+      const x = (i / (nPts+1)) * (W+40) - 20;
+      // Height varies irregularly — clusters of peaks with valleys
+      const base = rng.range(0.05, 0.18); // valley floor
+      const spike = rng.next() < 0.35
+        ? rng.range(0.55, 1.0)   // major peak
+        : rng.next() < 0.5
+          ? rng.range(0.25, 0.55) // minor peak
+          : rng.range(0.02, 0.20); // valley
+      const h = maxH * (base + spike * (1-base));
+      ptX.push(x + rng.range(-W/nPts*0.3, W/nPts*0.3));
+      ptY.push(yBase - h);
+    }
+
+    ptX.push(W+20); ptY.push(yBase + 10);
+
+    // Draw as smooth-ish path using quadratic curves through midpoints
+    ctx.beginPath();
+    ctx.moveTo(ptX[0], ptY[0]);
+    for (let i = 1; i < ptX.length - 1; i++) {
+      const mx = (ptX[i] + ptX[i+1]) / 2;
+      const my = (ptY[i] + ptY[i+1]) / 2;
+      ctx.quadraticCurveTo(ptX[i], ptY[i], mx, my);
+    }
+    ctx.lineTo(ptX[ptX.length-1], ptY[ptY.length-1]);
+    ctx.lineTo(W+20, yBase+10);
+    ctx.lineTo(-20, yBase+10);
+    ctx.closePath();
+    ctx.fillStyle = rgb(mr,mg,mb);
+    ctx.fill();
+  }
+}
+
+function drawGrid(W, H, horizon, pal, rng) {
+  const fg = ctx.createLinearGradient(0, horizon, 0, H);
+  fg.addColorStop(0, pal.floorT); fg.addColorStop(1, pal.floorB);
+  ctx.fillStyle = fg; ctx.fillRect(0, horizon, W, H-horizon);
+
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, horizon, W, H-horizon); ctx.clip();
+
+  // Horizontal lines — perspective spaced, full width, no fade
+  const rows = rng.int(14, 24);
+  for (let r = 0; r <= rows; r++) {
+    const t = Math.pow(r/rows, 1.6);
+    const y = horizon + (H-horizon)*t;
+    const g = ctx.createLinearGradient(0, y, W, y);
+    g.addColorStop(0,    pal.gridF);
+    g.addColorStop(0.12, pal.gridA);
+    g.addColorStop(0.88, pal.gridA);
+    g.addColorStop(1,    pal.gridF);
+    ctx.strokeStyle = g;
+    ctx.lineWidth = 0.5 + t*1.2;
+    ctx.globalAlpha = 0.18 + t*0.60;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  // Vertical lines — at horizon they spread across a narrow band (not a point)
+  // vpSpread = how wide the lines are at the horizon line
+  const cols = rng.int(16, 30);
+  const vpCx = W * rng.range(0.38, 0.62);
+  const vpSpread = W * rng.range(0.04, 0.12); // band width at horizon
+
+  for (let c = 0; c <= cols; c++) {
+    const frac = c / cols; // 0..1
+    const bottomX = frac * W; // full width at bottom
+    const topX = vpCx - vpSpread/2 + frac * vpSpread; // narrow band at horizon
+    const distFromCenter = Math.abs(frac - 0.5) * 2;
+    ctx.strokeStyle = pal.grid;
+    ctx.lineWidth = 0.5;
+    ctx.globalAlpha = 0.10 + distFromCenter * 0.28;
+    ctx.beginPath();
+    ctx.moveTo(topX, horizon);
+    ctx.lineTo(bottomX, H);
+    ctx.stroke();
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function drawCity(W, horizon, pal, rng) {
+  if (rng.bool(0.35)) return;
+  const count=rng.int(10,24), cw=W*rng.range(0.45,0.88);
+  const cx=(W-cw)/2+rng.range(-W*0.08,W*0.08);
+  const maxH=horizon*rng.range(0.14,0.32);
+  const [mr,mg,mb]=pal.mtn[0];
+  for (let i=0;i<count;i++) {
+    const bx=cx+(i/count)*cw+rng.range(-cw/count*0.2,0);
+    const bw=(cw/count)*rng.range(0.5,0.92), bh=maxH*rng.range(0.15,1.0), by=horizon-bh;
+    ctx.fillStyle=rgb(mr,mg,mb); ctx.fillRect(bx,by,bw,bh);
+    if (rng.bool(0.55)) {
+      const wc=rng.int(2,4),wr=rng.int(2,8),ww=bw/(wc*2+1),wh=bh/(wr*2+1);
+      for(let row=0;row<wr;row++) for(let col=0;col<wc;col++) if(rng.bool(0.4)){
+        ctx.fillStyle=pal.accent; ctx.globalAlpha=rng.range(0.3,0.75);
+        ctx.fillRect(bx+ww*(col*2+1),by+wh*(row*2+1),ww,wh); ctx.globalAlpha=1;
+      }
+    }
+  }
+}
+
+function drawPalm(bx, baseY, height, pal, rng) {
+  const lean = rng.range(-0.18, 0.18);
+  const topX = bx + lean * height;
+  const topY = baseY - height;
+  const [mr,mg,mb] = pal.mtn[0];
+  const col = rgb(mr,mg,mb);
+  const tw = Math.max(8, height * 0.07); // trunk width — filled, not stroked
+
+  ctx.save();
+  ctx.fillStyle = col;
+
+  // Filled trunk — tapered quadrilateral along the bezier curve
+  // Approximate as 3 segments for a natural taper
+  const segs = 8;
+  const leftPts = [], rightPts = [];
+  for (let i = 0; i <= segs; i++) {
+    const t = i / segs;
+    // Bezier point
+    const px = (1-t)*(1-t)*bx + 2*(1-t)*t*(bx+lean*height*0.5) + t*t*topX;
+    const py = (1-t)*(1-t)*baseY + 2*(1-t)*t*(baseY-height*0.5) + t*t*topY;
+    // Tangent direction
+    const dx = 2*(1-t)*(lean*height*0.5-bx+bx) + 2*t*(topX-lean*height*0.5-bx+bx);
+    const dy = 2*(1-t)*(-height*0.5) + 2*t*(topY-baseY+height*0.5);
+    const len = Math.sqrt(dx*dx+dy*dy) || 1;
+    const nx = -dy/len, ny = dx/len; // normal
+    const w = tw * (1 - t*0.55); // taper toward top
+    leftPts.push([px + nx*w, py + ny*w]);
+    rightPts.push([px - nx*w, py - ny*w]);
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(leftPts[0][0], leftPts[0][1]);
+  leftPts.forEach(p => ctx.lineTo(p[0], p[1]));
+  for (let i = rightPts.length-1; i >= 0; i--) ctx.lineTo(rightPts[i][0], rightPts[i][1]);
+  ctx.closePath();
+  ctx.fill();
+
+  // Filled fronds — each is a thick tapered leaf shape
+  const frondCount = rng.int(6, 9);
+  for (let f = 0; f < frondCount; f++) {
+    const baseAng = (f / frondCount) * Math.PI * 2 + rng.range(-0.15, 0.15);
+    const fl = height * rng.range(0.38, 0.58);
+    const droop = rng.range(0.3, 0.65); // how much it curves down
+    const fw = fl * rng.range(0.06, 0.10); // frond width at base
+
+    // Control point droops downward
+    const cpx = topX + Math.cos(baseAng) * fl * 0.5;
+    const cpy = topY + Math.sin(baseAng) * fl * 0.4 + fl * droop * 0.5;
+    const ex  = topX + Math.cos(baseAng) * fl;
+    const ey  = topY + Math.sin(baseAng) * fl * 0.5 + fl * droop;
+
+    // Frond as filled tapered shape — two offset bezier curves
+    const ox = -Math.sin(baseAng) * fw, oy = Math.cos(baseAng) * fw;
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(topX + ox, topY + oy);
+    ctx.quadraticCurveTo(cpx + ox*0.5, cpy + oy*0.5, ex, ey);
+    ctx.quadraticCurveTo(cpx - ox*0.5, cpy - oy*0.5, topX - ox, topY - oy);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+function drawPalms(W, H, horizon, pal, rng) {
+  if (rng.bool(0.12)) return;
+  for (let i=0;i<rng.int(2,5);i++) {
+    const side=rng.bool()?1:-1, xf=rng.range(0.04,0.44);
+    const bx=W*(side>0?xf:1-xf);
+    // Tall — 80-140% of horizon height, rooted at or just below horizon
+    const h = horizon * rng.range(0.80, 1.40);
+    const baseY = horizon + rng.range(0, (H-horizon)*0.08);
+    drawPalm(bx, baseY, h, pal, rng);
+  }
+}
+
+function drawWaveLines(W, H, horizon, pal, rng) {
+  const count = rng.int(6, 14);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, horizon, W, H-horizon); ctx.clip();
+
+  for (let i = 0; i < count; i++) {
+    const t = Math.pow((i+1)/(count+1), 1.4);
+    const y = horizon + (H-horizon)*t;
+    const amp   = rng.range(6, 28) * (1 - t*0.4);  // waves flatten toward horizon
+    const freq  = rng.range(1.5, 4.0);
+    const phase = rng.range(0, Math.PI*2);
+    const segs  = 80;
+
+    ctx.beginPath();
+    for (let s = 0; s <= segs; s++) {
+      const x  = (s/segs)*W;
+      const wy = y + Math.sin((s/segs)*Math.PI*2*freq + phase) * amp
+                   + Math.sin((s/segs)*Math.PI*2*freq*1.7 + phase*1.3) * amp*0.4;
+      s === 0 ? ctx.moveTo(x, wy) : ctx.lineTo(x, wy);
+    }
+
+    ctx.strokeStyle = pal.grid;
+    ctx.lineWidth   = rng.range(0.5, 1.4);
+    ctx.globalAlpha = rng.range(0.15, 0.45) * (0.3 + t*0.7);
+    ctx.stroke();
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function drawReflection(W, H, horizon, sun, pal, rng) {
+  if (!rng.bool(0.55)) return;
+  const rw  = sun.r * rng.range(0.8, 1.8);  // much wider
+  const rh  = (H - horizon) * rng.range(0.35, 0.55); // shorter fade
+  const rg  = ctx.createLinearGradient(sun.cx, horizon, sun.cx, horizon + rh);
+  rg.addColorStop(0,   pal.reflA);
+  rg.addColorStop(0.4, pal.reflB);
+  rg.addColorStop(1,   pal.reflB);
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen'; // blend with grid, not cover it
+  ctx.fillStyle = rg;
+  ctx.beginPath();
+  ctx.moveTo(sun.cx - rw,     horizon);
+  ctx.lineTo(sun.cx + rw,     horizon);
+  ctx.lineTo(sun.cx + rw * 0.08, horizon + rh);
+  ctx.lineTo(sun.cx - rw * 0.08, horizon + rh);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawScanlines(W, H, pal) {
+  ctx.save(); ctx.fillStyle=pal.scanA;
+  for (let y=0;y<H;y+=3) ctx.fillRect(0,y,W,1);
+  ctx.restore();
+}
+
+const SCENES=['mountains_grid','city_grid','palms_grid','mountains_palms','city_palms','minimal'];
+
+function render(seed) {
+  const W=canvas.width=window.innerWidth, H=canvas.height=window.innerHeight;
+  const rng=makeRng(seed);
+  const pal=rng.pick(PALETTES), scene=rng.pick(SCENES);
+  const horizon=drawSky(W,H,pal,rng);
+  drawStars(W,horizon,pal,rng);
+  const sun=drawSun(W,horizon,pal,rng);
+  if (scene !== 'palms_grid') drawMountains(W, horizon, pal, rng, rng.int(2,4));
+  if (scene === 'city_grid' || scene === 'city_palms') drawCity(W, horizon, pal, rng);
+  drawGrid(W, H, horizon, pal, rng);
+  drawReflection(W, H, horizon, sun, pal, rng);
+  drawWaveLines(W, H, horizon, pal, rng);
+  drawScanlines(W, H, pal);
+}
+
+let seed=Math.floor(Math.random()*0xffffff);
+render(seed);
+canvas.addEventListener('click',()=>{seed=Math.floor(Math.random()*0xffffff);render(seed);});
+window.addEventListener('resize',()=>render(seed));
+</script>
+</body>
+</html>
