@@ -371,28 +371,56 @@ const SCENES = [
 ];
 
 // ── DRAW ─────────────────────────────────────────────────────────────────────
-function drawLayer(pts, cx, cy, scale, rot, palette, baseWeight, baseWidth) {
+function drawLayer(pts, cx, cy, scale, rot, palette, baseWeight, baseWidth, fillMode) {
   if(pts.length<2) return;
 
   ctx.save();
   ctx.translate(cx,cy);
   ctx.rotate(rot);
-  ctx.lineWidth  = baseWidth;
-  ctx.lineCap    = 'round';
-  ctx.lineJoin   = 'round';
 
+  // Build the closed path once
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0]*scale, pts[0][1]*scale);
   for(let i=1;i<pts.length;i++){
-    const t = i/pts.length;
-    const [x0,y0] = pts[i-1];
-    const [x1,y1] = pts[i];
-    const alpha = baseWeight;
-    ctx.strokeStyle = palette.line(t);
-    ctx.globalAlpha = alpha;
-    ctx.beginPath();
-    ctx.moveTo(x0*scale, y0*scale);
-    ctx.lineTo(x1*scale, y1*scale);
-    ctx.stroke();
+    ctx.lineTo(pts[i][0]*scale, pts[i][1]*scale);
   }
+  ctx.closePath();
+
+  // Bounding box center for gradient origin
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  for(const [x,y] of pts){
+    const sx=x*scale, sy=y*scale;
+    if(sx<minX)minX=sx; if(sx>maxX)maxX=sx;
+    if(sy<minY)minY=sy; if(sy>maxY)maxY=sy;
+  }
+  const bx=(minX+maxX)/2, by=(minY+maxY)/2;
+  const br=Math.max(maxX-minX, maxY-minY)*0.55;
+
+  // Radial gradient — mode 0: light center→dark edge, mode 1: dark center→light edge
+  const grad = ctx.createRadialGradient(bx, by, 0, bx, by, br);
+  const c0 = palette.line(0);   // palette color at t=0
+  const c1 = palette.line(0.85);// palette color at t=0.85
+  if(fillMode === 0){
+    grad.addColorStop(0,   c0);
+    grad.addColorStop(0.6, c1);
+    grad.addColorStop(1,   palette.line(1));
+  } else {
+    grad.addColorStop(0,   palette.line(1));
+    grad.addColorStop(0.4, c1);
+    grad.addColorStop(1,   c0);
+  }
+
+  ctx.globalAlpha = baseWeight * 0.82;
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Stroke on top for definition
+  ctx.globalAlpha = baseWeight;
+  ctx.lineWidth = baseWidth;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = palette.line(0.5);
+  ctx.stroke();
 
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -404,9 +432,10 @@ function render(seed) {
   const H = canvas.height = window.innerHeight;
   const rng = makeRng(seed);
 
-  const scene   = rng.pick(SCENES);
-  const palette = rng.pick(PALETTES);
-  const layers  = scene.build(rng);
+  const scene    = rng.pick(SCENES);
+  const palette  = rng.pick(PALETTES);
+  const layers   = scene.build(rng);
+  const fillMode = rng.int(0,1); // 0=light-center, 1=dark-center — same for all layers this render
 
   const cx = W * rng.range(0.38, 0.62);
   const cy = H * rng.range(0.38, 0.62);
@@ -421,7 +450,7 @@ function render(seed) {
     const rot   = layer.rot  || 0;
     const alpha = layer.weight;
     const lw    = baseWidth * (0.6 + alpha * 0.7);
-    drawLayer(layer.pts, cx, cy, sc, rot, palette, alpha, lw);
+    drawLayer(layer.pts, cx, cy, sc, rot, palette, alpha, lw, fillMode);
   });
 
 
