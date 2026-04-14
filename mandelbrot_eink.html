@@ -8,7 +8,6 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
 canvas { display: block; width: 100vw; height: 100vh; cursor: pointer; }
-/*
 </style>
 </head>
 <body>
@@ -16,75 +15,56 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: pointer; }
 
 <script>
 const canvas = document.getElementById('c');
-const ctx    = canvas.getContext('2d');
+const ctx = canvas.getContext('2d');
 
 // ── RNG ───────────────────────────────────────────────────────────────────────
 function makeRng(seed) {
   let s = (seed ^ 0x9e3779b9) >>> 0;
   return {
-    next()        { s=(Math.imul(1664525,s)+1013904223)>>>0; return s/4294967295; },
-    range(a,b)    { return a+this.next()*(b-a); },
-    pick(arr)     { return arr[Math.floor(this.next()*arr.length)]; }
+    next()     { s = (Math.imul(1664525, s) + 1013904223) >>> 0; return s / 4294967295; },
+    range(a,b) { return a + this.next() * (b - a); },
+    pick(arr)  { return arr[Math.floor(this.next() * arr.length)]; }
   };
 }
 
-// ── Interesting regions of the Mandelbrot set ─────────────────────────────────
+// ── Interesting regions of the Mandelbrot set ────────────────────────────────
 const REGIONS = [
-  // Classic full view
-  { cx:-0.5,   cy:0,      zoom:1.0,  label:'full set' },
-  // Seahorse valley
-  { cx:-0.745, cy:0.1,    zoom:80,   label:'seahorse valley' },
-  // Elephant valley
-  { cx:0.3,    cy:0,      zoom:10,   label:'elephant valley' },
-  // Spiral
-  { cx:-0.7269,cy:0.1889, zoom:320,  label:'spiral' },
-  // Mini-brot
-  { cx:-1.786, cy:0,      zoom:40,   label:'mini-brot' },
-  // Feather
-  { cx:-0.925, cy:0.266,  zoom:180,  label:'feather' },
-  // Double spiral
-  { cx:-0.5592,cy:0.6222, zoom:200,  label:'double spiral' },
-  // Node
-  { cx:-0.1011,cy:0.9563, zoom:400,  label:'node' },
-  // Tendril
-  { cx:-0.7454,cy:0.1130, zoom:1200, label:'tendril' },
-  // Bulb edge
-  { cx:-1.25,  cy:0.02,   zoom:60,   label:'bulb edge' },
-  // Antenna tip
-  { cx:-1.401, cy:0,      zoom:300,  label:'antenna' },
-  // Valley swirl
-  { cx:-0.7615,cy:0.0879, zoom:900,  label:'valley swirl' },
+  { cx:-0.5,    cy:0,      zoom:1.0,  label:'full set' },
+  { cx:-0.745,  cy:0.1,    zoom:80,   label:'seahorse valley' },
+  { cx:0.3,     cy:0,      zoom:10,   label:'elephant valley' },
+  { cx:-0.7269, cy:0.1889, zoom:320,  label:'spiral' },
+  { cx:-1.786,  cy:0,      zoom:40,   label:'mini-brot' },
+  { cx:-0.925,  cy:0.266,  zoom:180,  label:'feather' },
+  { cx:-0.5592, cy:0.6222, zoom:200,  label:'double spiral' },
+  { cx:-0.1011, cy:0.9563, zoom:400,  label:'node' },
+  { cx:-0.7454, cy:0.1130, zoom:1200, label:'tendril' },
+  { cx:-1.25,   cy:0.02,   zoom:60,   label:'bulb edge' },
+  { cx:-1.401,  cy:0,      zoom:300,  label:'antenna' },
+  { cx:-0.7615, cy:0.0879, zoom:900,  label:'valley swirl' },
 ];
 
 // ── Palette styles ────────────────────────────────────────────────────────────
-// Each returns an [r,g,b] for a normalised iteration value t in [0,1]
-// All designed for e-ink aesthetic: high contrast, mostly near-black/white
-
 function palettePaper(t) {
-  // Warm cream paper — white background, dark ink
-  const v = Math.pow(1-t, 1.8);
+  const v = Math.pow(1 - t, 1.8);
   const r = Math.round(240 * v + 15);
   const g = Math.round(234 * v + 12);
   const b = Math.round(210 * v + 8);
-  return [r,g,b];
+  return [r, g, b];
 }
 
 function paletteInk(t) {
-  // Black background, white ink halos
   const v = Math.pow(t, 0.6);
-  return [Math.round(v*255), Math.round(v*252), Math.round(v*245)];
+  return [Math.round(v * 255), Math.round(v * 252), Math.round(v * 245)];
 }
 
 function paletteGraphite(t) {
-  // Cool graphite — 4-bit e-ink feel, stepped grays
   const steps = 16;
-  const v = Math.floor(Math.pow(1-t,1.4) * steps) / steps;
+  const v = Math.floor(Math.pow(1 - t, 1.4) * steps) / steps;
   const c = Math.round(v * 230 + 10);
   return [c, c, c];
 }
 
 function paletteDithered(t, x, y) {
-  // Bayer-ish ordered dither — very e-ink
   const bayer = [
     [ 0,32, 8,40, 2,34,10,42],
     [48,16,56,24,50,18,58,26],
@@ -95,58 +75,55 @@ function paletteDithered(t, x, y) {
     [15,47, 7,39,13,45, 5,37],
     [63,31,55,23,61,29,53,21]
   ];
-  const threshold = bayer[y&7][x&7] / 64;
-  const v = Math.pow(1-t, 1.6);
+  const threshold = bayer[y & 7][x & 7] / 64;
+  const v = Math.pow(1 - t, 1.6);
   const lit = v > threshold ? 240 : 14;
   return [lit, lit, lit];
 }
 
 function paletteSepia(t) {
-  const v = Math.pow(1-t, 1.6);
+  const v = Math.pow(1 - t, 1.6);
   return [
-    Math.round(v*225 + 18),
-    Math.round(v*198 + 14),
-    Math.round(v*155 + 10)
+    Math.round(v * 225 + 18),
+    Math.round(v * 198 + 14),
+    Math.round(v * 155 + 10)
   ];
 }
 
 function paletteCyan(t) {
-  // Dark cyan/teal e-ink variant
-  const v = Math.pow(1-t, 1.5);
+  const v = Math.pow(1 - t, 1.5);
   return [
-    Math.round(v*180 + 10),
-    Math.round(v*220 + 15),
-    Math.round(v*210 + 12)
+    Math.round(v * 180 + 10),
+    Math.round(v * 220 + 15),
+    Math.round(v * 210 + 12)
   ];
 }
 
 function paletteContour(t) {
-  // Topographic contour lines — thin bands
   const bands = 12;
   const band = Math.floor(t * bands);
   const inLine = (t * bands - band) < 0.08;
-  const v = inLine ? 0.05 : Math.pow(1-t, 1.3);
+  const v = inLine ? 0.05 : Math.pow(1 - t, 1.3);
   const c = Math.round(v * 235 + 10);
   return [c, c, c];
 }
 
 function paletteEink4bit(t) {
-  // Hard-quantised 16-level like actual e-ink display
   const levels = [0,17,34,51,68,85,102,119,136,153,170,187,204,221,238,255];
-  const idx = Math.min(15, Math.floor(Math.pow(1-t, 1.5) * 16));
+  const idx = Math.min(15, Math.floor(Math.pow(1 - t, 1.5) * 16));
   const c = levels[idx];
   return [c, c, c];
 }
 
 const PALETTES = [
-  { fn: palettePaper,   label: 'paper' },
-  { fn: paletteInk,     label: 'ink' },
-  { fn: paletteGraphite,label: 'graphite' },
-  { fn: paletteDithered,label: 'dithered' },
-  { fn: paletteSepia,   label: 'sepia' },
-  { fn: paletteCyan,    label: 'cyan' },
-  { fn: paletteContour, label: 'contour' },
-  { fn: paletteEink4bit,label: '4-bit e-ink' },
+  { fn: palettePaper,    label: 'paper' },
+  { fn: paletteInk,      label: 'ink' },
+  { fn: paletteGraphite, label: 'graphite' },
+  { fn: paletteDithered, label: 'dithered' },
+  { fn: paletteSepia,    label: 'sepia' },
+  { fn: paletteCyan,     label: 'cyan' },
+  { fn: paletteContour,  label: 'contour' },
+  { fn: paletteEink4bit, label: '4-bit e-ink' },
 ];
 
 // ── Render ────────────────────────────────────────────────────────────────────
@@ -155,46 +132,37 @@ function render(seed) {
   const H = canvas.height = window.innerHeight;
   const rng = makeRng(seed);
 
-  // Pick random region with slight random jitter
   const region = rng.pick(REGIONS);
   const jitterX = rng.range(-0.3, 0.3) / region.zoom;
   const jitterY = rng.range(-0.3, 0.3) / region.zoom;
   const cx = region.cx + jitterX;
   const cy = region.cy + jitterY;
 
-  // Random zoom variation around the region's zoom level
   const zoomMult = Math.pow(2, rng.range(-0.8, 0.8));
   const zoom = region.zoom * zoomMult;
 
-  // Random iteration depth — more iterations = more detail, slower
   const maxIter = Math.round(rng.range(60, 280));
-
-  // Random palette
   const palette = rng.pick(PALETTES);
-
-  // Random power (2 = standard, slight variation for organic feel)
-  const power = rng.range(1.85, 2.15);
-
-  // Background color from palette at t=0 (inside set color)
-  const insideColor = palette.label === 'ink'
-    ? [8, 8, 8]
-    : palette.fn(0);
+  const insideColor = palette.label === 'ink' ? [8, 8, 8] : palette.fn(0);
 
   const img = ctx.createImageData(W, H);
-  const d   = img.data;
+  const d = img.data;
   const scale = 3.5 / (Math.min(W, H) * zoom);
 
   for (let py = 0; py < H; py++) {
     for (let px = 0; px < W; px++) {
-      const c0r = (px - W/2) * scale + cx;
-      const c0i = (py - H/2) * scale + cy;
+      const c0r = (px - W / 2) * scale + cx;
+      const c0i = (py - H / 2) * scale + cy;
 
-      let zr = 0, zi = 0, iter = 0;
-      let zr2 = 0, zi2 = 0;
+      let zr = 0;
+      let zi = 0;
+      let iter = 0;
+      let zr2 = 0;
+      let zi2 = 0;
 
       while (zr2 + zi2 <= 4 && iter < maxIter) {
-        zi  = 2 * zr * zi + c0i;
-        zr  = zr2 - zi2 + c0r;
+        zi = 2 * zr * zi + c0i;
+        zr = zr2 - zi2 + c0r;
         zr2 = zr * zr;
         zi2 = zi * zi;
         iter++;
@@ -203,33 +171,33 @@ function render(seed) {
       const idx = (py * W + px) * 4;
 
       if (iter === maxIter) {
-        // Inside the set
-        d[idx]   = insideColor[0];
-        d[idx+1] = insideColor[1];
-        d[idx+2] = insideColor[2];
-        d[idx+3] = 255;
+        d[idx] = insideColor[0];
+        d[idx + 1] = insideColor[1];
+        d[idx + 2] = insideColor[2];
+        d[idx + 3] = 255;
       } else {
-        // Smooth iteration count for anti-banding
-        const smooth = iter + 1 - Math.log(Math.log(Math.sqrt(zr2+zi2)))/Math.log(2);
+        const smooth = iter + 1 - Math.log(Math.log(Math.sqrt(zr2 + zi2))) / Math.log(2);
         const t = Math.max(0, Math.min(1, smooth / maxIter));
         const rgb = palette.fn === paletteDithered
           ? paletteDithered(t, px, py)
           : palette.fn(t);
-        d[idx]   = rgb[0];
-        d[idx+1] = rgb[1];
-        d[idx+2] = rgb[2];
-        d[idx+3] = 255;
+
+        d[idx] = rgb[0];
+        d[idx + 1] = rgb[1];
+        d[idx + 2] = rgb[2];
+        d[idx + 3] = 255;
       }
     }
   }
 
   ctx.putImageData(img, 0, 0);
 
-  // Info overlay
+  // Hard guarantee: no text or overlay
+  ctx.globalAlpha = 1;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 
 let currentSeed = Math.floor(Math.random() * 0xffffff);
-
 render(currentSeed);
 
 canvas.addEventListener('click', () => {
