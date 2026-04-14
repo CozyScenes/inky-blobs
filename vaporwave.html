@@ -141,7 +141,6 @@ function drawStars(W, horizon, pal, rng) {
 function drawSun(W, horizon, pal, rng) {
   const cx = W * rng.range(0.30, 0.70);
   const r  = Math.min(W, horizon) * rng.range(0.16, 0.28);
-  // Always keep full circle above horizon — minimum clearance = r + 8px
   const cy = horizon - r - rng.range(r*0.1, horizon*0.55);
 
   for (let i = 3; i >= 0; i--) {
@@ -177,23 +176,19 @@ function drawMountains(W, horizon, pal, rng, layers) {
     const [mr,mg,mb] = pal.mtn[Math.min(l, pal.mtn.length-1)];
     const yBase  = horizon + 4;
     const maxH   = horizon * rng.range(0.28, 0.52) * (1 - l*0.10);
-    // Build an organic ridgeline across the full width
-    // Many control points — not regular triangles
     const nPts = rng.int(18, 32);
     const ptX = [], ptY = [];
 
-    // Start and end below horizon
     ptX.push(-20); ptY.push(yBase + 10);
 
     for (let i = 1; i <= nPts; i++) {
       const x = (i / (nPts+1)) * (W+40) - 20;
-      // Height varies irregularly — clusters of peaks with valleys
-      const base = rng.range(0.05, 0.18); // valley floor
+      const base = rng.range(0.05, 0.18);
       const spike = rng.next() < 0.35
-        ? rng.range(0.55, 1.0)   // major peak
+        ? rng.range(0.55, 1.0)
         : rng.next() < 0.5
-          ? rng.range(0.25, 0.55) // minor peak
-          : rng.range(0.02, 0.20); // valley
+          ? rng.range(0.25, 0.55)
+          : rng.range(0.02, 0.20);
       const h = maxH * (base + spike * (1-base));
       ptX.push(x + rng.range(-W/nPts*0.3, W/nPts*0.3));
       ptY.push(yBase - h);
@@ -201,7 +196,6 @@ function drawMountains(W, horizon, pal, rng, layers) {
 
     ptX.push(W+20); ptY.push(yBase + 10);
 
-    // Draw as smooth-ish path using quadratic curves through midpoints
     ctx.beginPath();
     ctx.moveTo(ptX[0], ptY[0]);
     for (let i = 1; i < ptX.length - 1; i++) {
@@ -219,39 +213,51 @@ function drawMountains(W, horizon, pal, rng, layers) {
 }
 
 function drawGrid(W, H, horizon, pal, rng) {
-  // Floor — use a 3-stop gradient with more separation so it doesn't collapse
   const fg = ctx.createLinearGradient(0, horizon, 0, H);
   fg.addColorStop(0,   pal.floorT);
-  fg.addColorStop(0.5, pal.floorT); // hold the lighter tone longer
+  fg.addColorStop(0.5, pal.floorT);
   fg.addColorStop(1,   pal.floorB);
-  ctx.fillStyle = fg; ctx.fillRect(0, horizon, W, H-horizon);
+  ctx.fillStyle = fg;
+  ctx.fillRect(0, horizon, W, H-horizon);
 
   ctx.save();
-  ctx.beginPath(); ctx.rect(0, horizon, W, H-horizon); ctx.clip();
+  ctx.beginPath();
+  ctx.rect(0, horizon, W, H-horizon);
+  ctx.clip();
 
-  // Horizontal lines — heavier weight, higher alpha
+  // Horizontal lines
   const rows = rng.int(14, 24);
   for (let r = 0; r <= rows; r++) {
-    const t = Math.pow(r/rows, 1.6);
-    const y = horizon + (H-horizon)*t;
+    const t = Math.pow(r / rows, 1.3);
+    const y = horizon + (H - horizon) * t;
     ctx.strokeStyle = pal.grid;
-    ctx.lineWidth = 0.8 + t*2.0;
-    ctx.globalAlpha = 0.35 + t*0.55;
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    ctx.lineWidth = 0.8 + t * 2.0;
+    ctx.globalAlpha = 0.35 + t * 0.55;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(W, y);
+    ctx.stroke();
   }
 
-  // Vertical lines
-  const cols = rng.int(16, 30);
-  const vpCx = W * rng.range(0.38, 0.62);
-  const vpSpread = W * rng.range(0.04, 0.12);
-  for (let c = 0; c <= cols; c++) {
+  // Vertical lines — widened so floor feels like an open plane, not a corridor
+  const cols = rng.int(24, 40);
+  const vpX = W * rng.range(0.46, 0.54);
+  const spreadBottom = W * rng.range(2.4, 3.2);
+  const spreadTop = spreadBottom * rng.range(0.10, 0.18);
+
+  for (let c = -cols; c <= cols * 2; c++) {
     const frac = c / cols;
-    const bottomX = frac * W;
-    const topX = vpCx - vpSpread/2 + frac * vpSpread;
-    const distFromCenter = Math.abs(frac - 0.5) * 2;
+    const centered = frac - 0.5;
+
+    const bottomX = vpX + centered * spreadBottom;
+    const topX = vpX + centered * spreadTop;
+
+    const distFromCenter = Math.min(1, Math.abs(centered) * 1.5);
+
     ctx.strokeStyle = pal.grid;
     ctx.lineWidth = 0.8;
-    ctx.globalAlpha = 0.25 + distFromCenter * 0.35;
+    ctx.globalAlpha = 0.18 + distFromCenter * 0.32;
+
     ctx.beginPath();
     ctx.moveTo(topX, horizon);
     ctx.lineTo(bottomX, H);
@@ -288,26 +294,22 @@ function drawPalm(bx, baseY, height, pal, rng) {
   const topY = baseY - height;
   const [mr,mg,mb] = pal.mtn[0];
   const col = rgb(mr,mg,mb);
-  const tw = Math.max(8, height * 0.07); // trunk width — filled, not stroked
+  const tw = Math.max(8, height * 0.07);
 
   ctx.save();
   ctx.fillStyle = col;
 
-  // Filled trunk — tapered quadrilateral along the bezier curve
-  // Approximate as 3 segments for a natural taper
   const segs = 8;
   const leftPts = [], rightPts = [];
   for (let i = 0; i <= segs; i++) {
     const t = i / segs;
-    // Bezier point
     const px = (1-t)*(1-t)*bx + 2*(1-t)*t*(bx+lean*height*0.5) + t*t*topX;
     const py = (1-t)*(1-t)*baseY + 2*(1-t)*t*(baseY-height*0.5) + t*t*topY;
-    // Tangent direction
     const dx = 2*(1-t)*(lean*height*0.5-bx+bx) + 2*t*(topX-lean*height*0.5-bx+bx);
     const dy = 2*(1-t)*(-height*0.5) + 2*t*(topY-baseY+height*0.5);
     const len = Math.sqrt(dx*dx+dy*dy) || 1;
-    const nx = -dy/len, ny = dx/len; // normal
-    const w = tw * (1 - t*0.55); // taper toward top
+    const nx = -dy/len, ny = dx/len;
+    const w = tw * (1 - t*0.55);
     leftPts.push([px + nx*w, py + ny*w]);
     rightPts.push([px - nx*w, py - ny*w]);
   }
@@ -319,21 +321,18 @@ function drawPalm(bx, baseY, height, pal, rng) {
   ctx.closePath();
   ctx.fill();
 
-  // Filled fronds — each is a thick tapered leaf shape
   const frondCount = rng.int(6, 9);
   for (let f = 0; f < frondCount; f++) {
     const baseAng = (f / frondCount) * Math.PI * 2 + rng.range(-0.15, 0.15);
     const fl = height * rng.range(0.38, 0.58);
-    const droop = rng.range(0.3, 0.65); // how much it curves down
-    const fw = fl * rng.range(0.06, 0.10); // frond width at base
+    const droop = rng.range(0.3, 0.65);
+    const fw = fl * rng.range(0.06, 0.10);
 
-    // Control point droops downward
     const cpx = topX + Math.cos(baseAng) * fl * 0.5;
     const cpy = topY + Math.sin(baseAng) * fl * 0.4 + fl * droop * 0.5;
     const ex  = topX + Math.cos(baseAng) * fl;
     const ey  = topY + Math.sin(baseAng) * fl * 0.5 + fl * droop;
 
-    // Frond as filled tapered shape — two offset bezier curves
     const ox = -Math.sin(baseAng) * fw, oy = Math.cos(baseAng) * fw;
     ctx.fillStyle = col;
     ctx.beginPath();
@@ -352,7 +351,6 @@ function drawPalms(W, H, horizon, pal, rng) {
   for (let i=0;i<rng.int(2,5);i++) {
     const side=rng.bool()?1:-1, xf=rng.range(0.04,0.44);
     const bx=W*(side>0?xf:1-xf);
-    // Tall — 80-140% of horizon height, rooted at or just below horizon
     const h = horizon * rng.range(0.80, 1.40);
     const baseY = horizon + rng.range(0, (H-horizon)*0.08);
     drawPalm(bx, baseY, h, pal, rng);
@@ -362,12 +360,14 @@ function drawPalms(W, H, horizon, pal, rng) {
 function drawWaveLines(W, H, horizon, pal, rng) {
   const count = rng.int(6, 14);
   ctx.save();
-  ctx.beginPath(); ctx.rect(0, horizon, W, H-horizon); ctx.clip();
+  ctx.beginPath();
+  ctx.rect(0, horizon, W, H-horizon);
+  ctx.clip();
 
   for (let i = 0; i < count; i++) {
     const t = Math.pow((i+1)/(count+1), 1.4);
     const y = horizon + (H-horizon)*t;
-    const amp   = rng.range(6, 28) * (1 - t*0.4);  // waves flatten toward horizon
+    const amp   = rng.range(6, 28) * (1 - t*0.4);
     const freq  = rng.range(1.5, 4.0);
     const phase = rng.range(0, Math.PI*2);
     const segs  = 80;
@@ -392,18 +392,18 @@ function drawWaveLines(W, H, horizon, pal, rng) {
 
 function drawReflection(W, H, horizon, sun, pal, rng) {
   if (!rng.bool(0.55)) return;
-  const rw  = sun.r * rng.range(0.8, 1.8);  // much wider
-  const rh  = (H - horizon) * rng.range(0.35, 0.55); // shorter fade
+  const rw  = sun.r * rng.range(0.8, 1.8);
+  const rh  = (H - horizon) * rng.range(0.35, 0.55);
   const rg  = ctx.createLinearGradient(sun.cx, horizon, sun.cx, horizon + rh);
   rg.addColorStop(0,   pal.reflA);
   rg.addColorStop(0.4, pal.reflB);
   rg.addColorStop(1,   pal.reflB);
   ctx.save();
-  ctx.globalCompositeOperation = 'screen'; // blend with grid, not cover it
+  ctx.globalCompositeOperation = 'screen';
   ctx.fillStyle = rg;
   ctx.beginPath();
-  ctx.moveTo(sun.cx - rw,     horizon);
-  ctx.lineTo(sun.cx + rw,     horizon);
+  ctx.moveTo(sun.cx - rw, horizon);
+  ctx.lineTo(sun.cx + rw, horizon);
   ctx.lineTo(sun.cx + rw * 0.08, horizon + rh);
   ctx.lineTo(sun.cx - rw * 0.08, horizon + rh);
   ctx.closePath();
@@ -412,7 +412,8 @@ function drawReflection(W, H, horizon, sun, pal, rng) {
 }
 
 function drawScanlines(W, H, pal) {
-  ctx.save(); ctx.fillStyle=pal.scanA;
+  ctx.save();
+  ctx.fillStyle=pal.scanA;
   for (let y=0;y<H;y+=3) ctx.fillRect(0,y,W,1);
   ctx.restore();
 }
