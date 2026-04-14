@@ -218,21 +218,7 @@ function rhodonea(k,steps){
   return pts;
 }
 
-function cornuSpiral(steps){
-  const pts=[];
-  for(let i=0;i<=steps;i++){
-    const t=-4+(i/steps)*8;
-    let x=0,y=0;
-    const n=200;
-    for(let j=0;j<n;j++){
-      const s=t*j/n;
-      x+=Math.cos(Math.PI*s*s/2)*(t/n);
-      y+=Math.sin(Math.PI*s*s/2)*(t/n);
-    }
-    pts.push([x/3,y/3]);
-  }
-  return pts;
-}
+
 
 // ── SCENES ───────────────────────────────────────────────────────────────────
 // A scene = one or more layers, each a curve with its own transform + weight
@@ -241,81 +227,81 @@ const SCENES = [
   {
     label:'lissajous 3:4',
     build:(rng)=>[
-      {pts:lissajous(3,4,Math.PI/2,8000), weight:1.0, rot:rng.range(0,Math.PI*2)},
-      {pts:lissajous(3,4,Math.PI/2+0.15,6000), weight:0.45, rot:rng.range(0,Math.PI*2)},
+      {pts:lissajous(3,4,Math.PI/2,3000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:lissajous(3,4,Math.PI/2+0.15,2000), weight:0.45, rot:rng.range(0,Math.PI*2)},
     ]
   },
   {
     label:'lissajous 5:6',
     build:(rng)=>[
-      {pts:lissajous(5,6,Math.PI/4,10000), weight:1.0, rot:rng.range(0,Math.PI*2)},
-      {pts:lissajous(5,6,Math.PI/4+0.3,7000), weight:0.35, rot:rng.range(0,Math.PI*2)},
+      {pts:lissajous(5,6,Math.PI/4,4000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:lissajous(5,6,Math.PI/4+0.3,3000), weight:0.35, rot:rng.range(0,Math.PI*2)},
     ]
   },
   {
     label:'lissajous 7:8 mesh',
     build:(rng)=>[
-      {pts:lissajous(7,8,rng.range(0,Math.PI),14000), weight:1.0, rot:0},
-      {pts:lissajous(7,8,rng.range(0,Math.PI),10000), weight:0.5, rot:Math.PI/7},
+      {pts:lissajous(7,8,rng.range(0,Math.PI),5000), weight:1.0, rot:0},
+      {pts:lissajous(7,8,rng.range(0,Math.PI),3500), weight:0.5, rot:Math.PI/7},
     ]
   },
   {
     label:'rose 7/3',
     build:(rng)=>[
-      {pts:roseCurve(7,3,16000), weight:1.0, rot:rng.range(0,Math.PI*2)},
-      {pts:roseCurve(7,3,12000), weight:0.4, rot:rng.range(0,Math.PI*2), scale:0.72},
-      {pts:roseCurve(7,3,8000),  weight:0.2, rot:rng.range(0,Math.PI*2), scale:0.44},
+      {pts:roseCurve(7,3,5000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:roseCurve(7,3,4000), weight:0.4, rot:rng.range(0,Math.PI*2), scale:0.72},
+      {pts:roseCurve(7,3,3000), weight:0.2, rot:rng.range(0,Math.PI*2), scale:0.44},
     ]
   },
   {
     label:'rose 11/4',
     build:(rng)=>[
-      {pts:roseCurve(11,4,20000), weight:1.0, rot:rng.range(0,Math.PI*2)},
-      {pts:roseCurve(11,4,14000), weight:0.45, rot:rng.range(0,Math.PI*2), scale:0.65},
+      {pts:roseCurve(11,4,6000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:roseCurve(11,4,4000), weight:0.45, rot:rng.range(0,Math.PI*2), scale:0.65},
     ]
   },
   {
     label:'spirograph star',
     build:(rng)=>[
-      {pts:spirograph(170,113,80,20000), weight:1.0, rot:rng.range(0,Math.PI*2)},
-      {pts:spirograph(170,113,40,12000), weight:0.5, rot:rng.range(0,Math.PI*2)},
-      {pts:spirograph(130,80,60,10000),  weight:0.3, rot:rng.range(0,Math.PI*2), scale:0.6},
+      {pts:spirograph(170,113,80,6000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:spirograph(170,113,40,4000), weight:0.5, rot:rng.range(0,Math.PI*2)},
+      {pts:spirograph(130,80,60,3000),  weight:0.3, rot:rng.range(0,Math.PI*2), scale:0.6},
     ]
   },
   {
     label:'spirograph classic',
     build:(rng)=>[
-      {pts:spirograph(160,60,80,18000), weight:1.0, rot:rng.range(0,Math.PI*2)},
-      {pts:spirograph(160,60,120,14000),weight:0.5, rot:rng.range(0,Math.PI*2)},
+      {pts:spirograph(160,60,80,5000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:spirograph(160,60,120,4000),weight:0.5, rot:rng.range(0,Math.PI*2)},
     ]
   },
   {
     label:'spirograph dense',
     build:(rng)=>[
-      {pts:spirograph(180,77,100,22000), weight:1.0, rot:rng.range(0,Math.PI*2)},
-      {pts:spirograph(180,77,50,14000),  weight:0.4, rot:rng.range(0,Math.PI*2), scale:0.8},
-      {pts:spirograph(150,40,140,12000), weight:0.3, rot:rng.range(0,Math.PI*2), scale:0.55},
+      {pts:spirograph(180,77,100,7000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:spirograph(180,77,50,5000),  weight:0.4, rot:rng.range(0,Math.PI*2), scale:0.8},
+      {pts:spirograph(150,40,140,4000), weight:0.3, rot:rng.range(0,Math.PI*2), scale:0.55},
     ]
   },
   {
     label:'epitrochoid',
     build:(rng)=>[
-      {pts:epitrochoid(5,3,5,20000), weight:1.0, rot:rng.range(0,Math.PI*2)},
-      {pts:epitrochoid(5,3,3,14000), weight:0.45, rot:rng.range(0,Math.PI*2), scale:0.7},
+      {pts:epitrochoid(5,3,5,6000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:epitrochoid(5,3,3,4000), weight:0.45, rot:rng.range(0,Math.PI*2), scale:0.7},
     ]
   },
   {
     label:'butterfly',
     build:(rng)=>[
-      {pts:butterfly(16000), weight:1.0, rot:rng.range(0,Math.PI*2)},
-      {pts:butterfly(10000), weight:0.4, rot:rng.range(0,Math.PI*2), scale:0.6},
+      {pts:butterfly(4000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:butterfly(2500), weight:0.4, rot:rng.range(0,Math.PI*2), scale:0.6},
     ]
   },
   {
     label:'rhodonea',
     build:(rng)=>[
-      {pts:rhodonea(rng.pick([3,5,7,9]),16000), weight:1.0, rot:rng.range(0,Math.PI*2)},
-      {pts:rhodonea(rng.pick([4,6,8]),12000),   weight:0.4, rot:rng.range(0,Math.PI*2), scale:0.7},
+      {pts:rhodonea(rng.pick([3,5,7,9]),4000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:rhodonea(rng.pick([4,6,8]),3000),   weight:0.4, rot:rng.range(0,Math.PI*2), scale:0.7},
     ]
   },
   {
@@ -324,7 +310,7 @@ const SCENES = [
       const n=rng.range(0.4,5); const layers=[];
       for(let i=0;i<6;i++){
         const sc=1-(i*0.12);
-        layers.push({pts:superellipse(n*(1+i*0.08),1,1,3000), weight:1-i*0.14, rot:i*rng.range(0.04,0.18), scale:sc});
+        layers.push({pts:superellipse(n*(1+i*0.08),1,1,1200), weight:1-i*0.14, rot:i*rng.range(0.04,0.18), scale:sc});
       }
       return layers;
     }
@@ -332,9 +318,9 @@ const SCENES = [
   {
     label:'lemniscate',
     build:(rng)=>[
-      {pts:lemniscate(1,12000), weight:1.0, rot:rng.range(0,Math.PI*2)},
-      {pts:lemniscate(1,9000),  weight:0.5, rot:rng.range(0,Math.PI*2), scale:0.72},
-      {pts:lemniscate(1,7000),  weight:0.3, rot:rng.range(0,Math.PI*2), scale:0.5},
+      {pts:lemniscate(1,4000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:lemniscate(1,3000), weight:0.5, rot:rng.range(0,Math.PI*2), scale:0.72},
+      {pts:lemniscate(1,2000), weight:0.3, rot:rng.range(0,Math.PI*2), scale:0.5},
     ]
   },
   {
@@ -343,7 +329,7 @@ const SCENES = [
       const a=rng.range(1.2,2.5), b=rng.range(0.8,2.8);
       const layers=[];
       for(let i=0;i<5;i++){
-        layers.push({pts:limacon(a,b*(1-i*0.12),6000), weight:1-i*0.16, rot:i*rng.range(0.05,0.2), scale:1-i*0.1});
+        layers.push({pts:limacon(a,b*(1-i*0.12),2000), weight:1-i*0.16, rot:i*rng.range(0.05,0.2), scale:1-i*0.1});
       }
       return layers;
     }
@@ -351,17 +337,17 @@ const SCENES = [
   {
     label:'rose trifoil rings',
     build:(rng)=>[
-      {pts:roseCurve(3,1,10000), weight:1.0, rot:rng.range(0,Math.PI*2)},
-      {pts:roseCurve(3,1,8000),  weight:0.6, rot:rng.range(0,Math.PI*2), scale:0.72},
-      {pts:roseCurve(3,1,6000),  weight:0.35,rot:rng.range(0,Math.PI*2), scale:0.48},
-      {pts:superellipse(2,1,1,2000), weight:0.12, rot:0, scale:0.3},
+      {pts:roseCurve(3,1,3000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:roseCurve(3,1,2500), weight:0.6, rot:rng.range(0,Math.PI*2), scale:0.72},
+      {pts:roseCurve(3,1,2000), weight:0.35,rot:rng.range(0,Math.PI*2), scale:0.48},
+      {pts:superellipse(2,1,1,800), weight:0.12, rot:0, scale:0.3},
     ]
   },
   {
     label:'spirograph heptagram',
     build:(rng)=>[
-      {pts:spirograph(7*20,3*20,7*20,24000), weight:1.0, rot:rng.range(0,Math.PI*2)},
-      {pts:spirograph(7*20,3*20,4*20,16000), weight:0.45,rot:rng.range(0,Math.PI*2)},
+      {pts:spirograph(7*20,3*20,7*20,8000), weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:spirograph(7*20,3*20,4*20,5000), weight:0.45,rot:rng.range(0,Math.PI*2)},
     ]
   },
   {
@@ -371,7 +357,7 @@ const SCENES = [
       const layers=[];
       pairs.forEach((p,i)=>{
         const delta=rng.range(0,Math.PI*2);
-        layers.push({pts:lissajous(p[0],p[1],delta,8000), weight:1/(i+1), rot:rng.range(0,Math.PI*2), scale:1});
+        layers.push({pts:lissajous(p[0],p[1],delta,3000), weight:1/(i+1), rot:rng.range(0,Math.PI*2), scale:1});
       });
       return layers;
     }
@@ -379,8 +365,8 @@ const SCENES = [
   {
     label:'rose + spirograph',
     build:(rng)=>[
-      {pts:roseCurve(5,2,14000),       weight:1.0, rot:rng.range(0,Math.PI*2)},
-      {pts:spirograph(150,60,90,14000),weight:0.5, rot:rng.range(0,Math.PI*2), scale:0.88},
+      {pts:roseCurve(5,2,5000),       weight:1.0, rot:rng.range(0,Math.PI*2)},
+      {pts:spirograph(150,60,90,5000),weight:0.5, rot:rng.range(0,Math.PI*2), scale:0.88},
     ]
   },
   {
@@ -388,9 +374,9 @@ const SCENES = [
     build:(rng)=>{
       const n=rng.range(0.35,6);
       const layers=[];
-      for(let i=0;i<12;i++){
+      for(let i=0;i<10;i++){
         const sc=0.98-i*0.07;
-        layers.push({pts:superellipse(n,1,rng.range(0.7,1.0),2000), weight:0.9, rot:i*rng.range(0.02,0.12), scale:sc});
+        layers.push({pts:superellipse(n,1,rng.range(0.7,1.0),800), weight:0.9, rot:i*rng.range(0.02,0.12), scale:sc});
       }
       return layers;
     }
@@ -438,7 +424,7 @@ function render(seed) {
   const cx = W * rng.range(0.38, 0.62);
   const cy = H * rng.range(0.38, 0.62);
   const baseScale = Math.min(W,H) * rng.range(0.36, 0.47);
-  const baseWidth = rng.range(0.9, 2.2) * palette.lineW(1);
+  const baseWidth = rng.range(1.4, 3.0) * palette.lineW(1);
 
   ctx.fillStyle = palette.bg;
   ctx.fillRect(0,0,W,H);
