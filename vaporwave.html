@@ -41,33 +41,24 @@ function rgb(r,g,b)   { return `rgb(${r},${g},${b})`; }
 const PALETTES = [
   {
     name:'paper day',
-    // Light cream sky
     skyT:rgba(245,242,234,1), skyM:rgba(225,220,208,1), skyB:rgba(195,190,175,1),
-    // Bright white sun, dark scan lines
     sunA:rgba(255,255,255,1), sunB:rgba(240,236,222,1), sunC:rgba(220,215,200,1),
     sunGlow:rgba(180,170,150,0.20),
-    // Dark grid on medium-dark floor
-    grid:rgba(40,38,30,1), gridA:rgba(40,38,30,0.9), gridF:rgba(40,38,30,0),
-    floorT:rgba(130,126,114,1), floorB:rgba(55,52,44,1),
-    // Near-black mountain silhouettes — max contrast
+    grid:rgba(30,28,22,1), gridA:rgba(30,28,22,0.9), gridF:rgba(30,28,22,0),
+    floorT:rgba(155,150,136,1), floorB:rgba(90,86,76,1),
     mtn:[[12,10,8],[28,25,20],[55,50,42]],
     scanA:rgba(0,0,0,0.06),
-    // Dark stars on light sky
     star:rgba(20,18,12,1), accent:rgba(20,18,12,1),
     sunLine:rgba(40,36,28,0.80),
     reflA:rgba(255,255,255,0.35), reflB:rgba(255,255,255,0),
   },
   {
     name:'ink night',
-    // Medium-dark sky — lighter than mountains
-    skyT:rgba(88,84,72,1), skyM:rgba(68,64,54,1), skyB:rgba(50,47,38,1),
-    // Very bright sun
+    skyT:rgba(110,106,92,1), skyM:rgba(85,82,70,1), skyB:rgba(62,58,48,1),
     sunA:rgba(255,255,250,1), sunB:rgba(245,240,225,1), sunC:rgba(230,224,205,1),
     sunGlow:rgba(255,255,220,0.18),
-    // Light grid on dark floor
-    grid:rgba(200,196,180,1), gridA:rgba(200,196,180,0.85), gridF:rgba(200,196,180,0),
-    floorT:rgba(30,28,22,1), floorB:rgba(10,9,6,1),
-    // Black mountains
+    grid:rgba(188,184,168,1), gridA:rgba(188,184,168,0.85), gridF:rgba(188,184,168,0),
+    floorT:rgba(72,68,56,1), floorB:rgba(42,39,32,1),
     mtn:[[8,7,5],[18,16,12],[35,32,25]],
     scanA:rgba(200,196,180,0.08),
     star:rgba(235,230,215,1), accent:rgba(235,230,215,1),
@@ -76,12 +67,11 @@ const PALETTES = [
   },
   {
     name:'dusk',
-    // Mid-tone sky gradient — light top, darker at horizon
-    skyT:rgba(210,205,188,1), skyM:rgba(170,164,148,1), skyB:rgba(120,115,100,1),
+    skyT:rgba(210,205,188,1), skyM:rgba(170,164,148,1), skyB:rgba(125,120,105,1),
     sunA:rgba(255,255,245,1), sunB:rgba(248,242,225,1), sunC:rgba(235,228,208,1),
     sunGlow:rgba(240,235,210,0.22),
-    grid:rgba(25,23,18,1), gridA:rgba(25,23,18,0.9), gridF:rgba(25,23,18,0),
-    floorT:rgba(95,90,78,1), floorB:rgba(30,28,22,1),
+    grid:rgba(28,26,20,1), gridA:rgba(28,26,20,0.9), gridF:rgba(28,26,20,0),
+    floorT:rgba(135,130,116,1), floorB:rgba(75,72,62,1),
     mtn:[[10,9,6],[22,20,15],[45,42,34]],
     scanA:rgba(0,0,0,0.05),
     star:rgba(15,13,9,1), accent:rgba(15,13,9,1),
@@ -90,13 +80,11 @@ const PALETTES = [
   },
   {
     name:'high contrast',
-    // Pure white sky
     skyT:rgba(255,255,255,1), skyM:rgba(235,232,222,1), skyB:rgba(200,196,182,1),
     sunA:rgba(255,255,255,1), sunB:rgba(255,255,255,1), sunC:rgba(245,242,232,1),
     sunGlow:rgba(150,145,130,0.15),
     grid:rgba(15,14,10,1), gridA:rgba(15,14,10,0.95), gridF:rgba(15,14,10,0),
-    floorT:rgba(145,140,126,1), floorB:rgba(40,38,30,1),
-    // Absolute black mountains
+    floorT:rgba(165,160,144,1), floorB:rgba(95,92,80,1),
     mtn:[[4,3,2],[10,9,6],[22,20,15]],
     scanA:rgba(0,0,0,0.07),
     star:rgba(10,9,6,1), accent:rgba(10,9,6,1),
@@ -105,12 +93,11 @@ const PALETTES = [
   },
   {
     name:'graphite',
-    // Stepped graphite tones — 4-bit feel
     skyT:rgba(220,216,204,1), skyM:rgba(185,180,166,1), skyB:rgba(148,143,130,1),
     sunA:rgba(255,255,252,1), sunB:rgba(242,238,224,1), sunC:rgba(225,220,205,1),
     sunGlow:rgba(200,195,178,0.18),
     grid:rgba(35,33,26,1), gridA:rgba(35,33,26,0.88), gridF:rgba(35,33,26,0),
-    floorT:rgba(110,106,95,1), floorB:rgba(38,36,28,1),
+    floorT:rgba(140,136,122,1), floorB:rgba(80,77,66,1),
     mtn:[[8,7,5],[20,18,14],[42,39,32]],
     scanA:rgba(0,0,0,0.06),
     star:rgba(18,16,11,1), accent:rgba(18,16,11,1),
@@ -232,43 +219,39 @@ function drawMountains(W, horizon, pal, rng, layers) {
 }
 
 function drawGrid(W, H, horizon, pal, rng) {
+  // Floor — use a 3-stop gradient with more separation so it doesn't collapse
   const fg = ctx.createLinearGradient(0, horizon, 0, H);
-  fg.addColorStop(0, pal.floorT); fg.addColorStop(1, pal.floorB);
+  fg.addColorStop(0,   pal.floorT);
+  fg.addColorStop(0.5, pal.floorT); // hold the lighter tone longer
+  fg.addColorStop(1,   pal.floorB);
   ctx.fillStyle = fg; ctx.fillRect(0, horizon, W, H-horizon);
 
   ctx.save();
   ctx.beginPath(); ctx.rect(0, horizon, W, H-horizon); ctx.clip();
 
-  // Horizontal lines — perspective spaced, full width, no fade
+  // Horizontal lines — heavier weight, higher alpha
   const rows = rng.int(14, 24);
   for (let r = 0; r <= rows; r++) {
     const t = Math.pow(r/rows, 1.6);
     const y = horizon + (H-horizon)*t;
-    const g = ctx.createLinearGradient(0, y, W, y);
-    g.addColorStop(0,    pal.gridF);
-    g.addColorStop(0.12, pal.gridA);
-    g.addColorStop(0.88, pal.gridA);
-    g.addColorStop(1,    pal.gridF);
-    ctx.strokeStyle = g;
-    ctx.lineWidth = 0.5 + t*1.2;
-    ctx.globalAlpha = 0.18 + t*0.60;
+    ctx.strokeStyle = pal.grid;
+    ctx.lineWidth = 0.8 + t*2.0;
+    ctx.globalAlpha = 0.35 + t*0.55;
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
   }
 
-  // Vertical lines — at horizon they spread across a narrow band (not a point)
-  // vpSpread = how wide the lines are at the horizon line
+  // Vertical lines
   const cols = rng.int(16, 30);
   const vpCx = W * rng.range(0.38, 0.62);
-  const vpSpread = W * rng.range(0.04, 0.12); // band width at horizon
-
+  const vpSpread = W * rng.range(0.04, 0.12);
   for (let c = 0; c <= cols; c++) {
-    const frac = c / cols; // 0..1
-    const bottomX = frac * W; // full width at bottom
-    const topX = vpCx - vpSpread/2 + frac * vpSpread; // narrow band at horizon
+    const frac = c / cols;
+    const bottomX = frac * W;
+    const topX = vpCx - vpSpread/2 + frac * vpSpread;
     const distFromCenter = Math.abs(frac - 0.5) * 2;
     ctx.strokeStyle = pal.grid;
-    ctx.lineWidth = 0.5;
-    ctx.globalAlpha = 0.10 + distFromCenter * 0.28;
+    ctx.lineWidth = 0.8;
+    ctx.globalAlpha = 0.25 + distFromCenter * 0.35;
     ctx.beginPath();
     ctx.moveTo(topX, horizon);
     ctx.lineTo(bottomX, H);
